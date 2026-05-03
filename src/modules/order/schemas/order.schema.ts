@@ -2,11 +2,16 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
 export type OrderStatus =
-  | 'draft' | 'sent' | 'in_progress' | 'ready' | 'served'
-  | 'paid' | 'refunded' | 'cancelled';
+  | 'draft'
+  | 'sent'
+  | 'in_progress'
+  | 'ready'
+  | 'served'
+  | 'paid'
+  | 'refunded'
+  | 'cancelled';
 
-export type OrderType =
-  | 'dine_in' | 'takeaway' | 'delivery' | 'online' | 'room_service';
+export type OrderType = 'dine_in' | 'takeaway' | 'delivery' | 'online' | 'room_service';
 
 export type BusinessContext = 'fnb' | 'hotel' | 'spa' | 'gym' | 'edu';
 
@@ -146,10 +151,7 @@ export class OrderDoc {
 
   @Prop({
     type: String,
-    enum: [
-      'draft', 'sent', 'in_progress', 'ready', 'served',
-      'paid', 'refunded', 'cancelled',
-    ],
+    enum: ['draft', 'sent', 'in_progress', 'ready', 'served', 'paid', 'refunded', 'cancelled'],
     default: 'draft',
     index: true,
   })

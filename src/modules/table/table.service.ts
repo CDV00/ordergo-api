@@ -1,10 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { TableRepository } from './repositories/table.repository';
-import {
-  ChangeTableStatusDto,
-  CreateTableDto,
-  UpdateTableDto,
-} from './dto/table.dto';
+import { ChangeTableStatusDto, CreateTableDto, UpdateTableDto } from './dto/table.dto';
 import { TableDoc } from './schemas/table.schema';
 
 @Injectable()

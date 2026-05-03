@@ -1,9 +1,4 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-  NestInterceptor,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
@@ -18,11 +13,7 @@ export class TransformInterceptor<T> implements NestInterceptor<T, Wrapped<T>> {
     return next.handle().pipe(
       map((value) => {
         // Đã trả format { data, pagination } từ controller → giữ nguyên
-        if (
-          value &&
-          typeof value === 'object' &&
-          'data' in (value as object)
-        ) {
+        if (value && typeof value === 'object' && 'data' in (value as object)) {
           return value as unknown as Wrapped<T>;
         }
         return { data: value as T };

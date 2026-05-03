@@ -24,7 +24,10 @@ export class TenantService {
    * Không dùng transaction — Mongo standalone không hỗ trợ. Best-effort:
    * nếu venue create fail, vẫn giữ tenant; user có thể tạo venue lại.
    */
-  async setupWizard(userId: string, dto: SetupWizardDto): Promise<{
+  async setupWizard(
+    userId: string,
+    dto: SetupWizardDto,
+  ): Promise<{
     tenant: TenantDoc;
     venue: VenueDoc;
     membership: MembershipDoc;
@@ -39,6 +42,7 @@ export class TenantService {
 
     const tenant = await this.tenants.create({
       name: dto.tenantName,
+      slug: await this.tenants.generateUniqueSlug(dto.tenantName),
       taxCode: dto.taxCode ?? null,
       ownerUserId: userId,
     });
@@ -60,6 +64,7 @@ export class TenantService {
         vatRate: 0.08,
         autoEinvoice: false,
         einvoiceProvider: null,
+        bankAccount: null,
       },
       schemaVersion: 1,
       createdAt: now,

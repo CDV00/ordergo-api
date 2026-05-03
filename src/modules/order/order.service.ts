@@ -118,10 +118,10 @@ export class OrderService {
       }),
     );
 
-    const subtotal = lines.reduce(
-      (acc, l) => addMoney(acc, l.lineTotal),
-      { amount: 0, currency: 'VND' },
-    );
+    const subtotal = lines.reduce((acc, l) => addMoney(acc, l.lineTotal), {
+      amount: 0,
+      currency: 'VND',
+    });
 
     let tableName: string | null = null;
     if (dto.tableId) {
@@ -210,7 +210,10 @@ export class OrderService {
 
     // Tính status order tổng hợp từ lines
     const allReady = newLines.every(
-      (l) => l.kitchenStatus === 'ready' || l.kitchenStatus === 'served' || l.kitchenStatus === 'cancelled',
+      (l) =>
+        l.kitchenStatus === 'ready' ||
+        l.kitchenStatus === 'served' ||
+        l.kitchenStatus === 'cancelled',
     );
     const anyPreparing = newLines.some((l) => l.kitchenStatus === 'preparing');
     const allServed = newLines.every(
@@ -219,7 +222,8 @@ export class OrderService {
 
     const set: Record<string, unknown> = { lines: newLines };
     if (allServed && order.status !== 'served') set.status = 'served';
-    else if (allReady && order.status !== 'ready' && order.status !== 'served') set.status = 'ready';
+    else if (allReady && order.status !== 'ready' && order.status !== 'served')
+      set.status = 'ready';
     else if (anyPreparing && order.status === 'sent') set.status = 'in_progress';
 
     const updated = await this.orders.updateById(orderId, { $set: set });

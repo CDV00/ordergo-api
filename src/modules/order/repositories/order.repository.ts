@@ -7,10 +7,7 @@ import { BaseTenantRepository } from '../../../shared/base/base.repository';
 
 @Injectable()
 export class OrderRepository extends BaseTenantRepository<OrderDoc> {
-  constructor(
-    @InjectModel(OrderDoc.name) model: Model<OrderDoc>,
-    tenantCtx: TenantContextService,
-  ) {
+  constructor(@InjectModel(OrderDoc.name) model: Model<OrderDoc>, tenantCtx: TenantContextService) {
     super(model, tenantCtx);
   }
 
@@ -25,9 +22,7 @@ export class OrderRepository extends BaseTenantRepository<OrderDoc> {
       .sort({ orderNumber: -1 })
       .lean<OrderDoc>()
       .exec();
-    const nextSeq = last
-      ? parseInt(last.orderNumber.substring(prefix.length), 10) + 1
-      : 1;
+    const nextSeq = last ? parseInt(last.orderNumber.substring(prefix.length), 10) + 1 : 1;
     return `${prefix}${String(nextSeq).padStart(4, '0')}`;
   }
 }

@@ -7,10 +7,7 @@ import { BaseTenantRepository } from '../../../shared/base/base.repository';
 
 @Injectable()
 export class TableRepository extends BaseTenantRepository<TableDoc> {
-  constructor(
-    @InjectModel(TableDoc.name) model: Model<TableDoc>,
-    tenantCtx: TenantContextService,
-  ) {
+  constructor(@InjectModel(TableDoc.name) model: Model<TableDoc>, tenantCtx: TenantContextService) {
     super(model, tenantCtx);
   }
 }

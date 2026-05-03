@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { envValidationSchema } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
@@ -16,6 +17,11 @@ import { TableModule } from './modules/table/table.module';
 import { OrderModule } from './modules/order/order.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
+import { TableSessionModule } from './modules/table-session/table-session.module';
+import { CustomerModule } from './modules/customer/customer.module';
+import { OtpModule } from './modules/otp/otp.module';
+import { LoyaltyModule } from './modules/loyalty/loyalty.module';
+import { PublicApiModule } from './modules/public-api/public-api.module';
 import { JwtModule } from '@nestjs/jwt';
 import { HealthController } from './common/health/health.controller';
 
@@ -27,6 +33,7 @@ import { HealthController } from './common/health/health.controller';
       validationSchema: envValidationSchema,
     }),
     JwtModule.register({}), // global instance for middleware (uses dynamic secret)
+    ScheduleModule.forRoot(),
     TenantContextModule,
     DatabaseModule,
     IdentityModule,
@@ -36,6 +43,11 @@ import { HealthController } from './common/health/health.controller';
     OrderModule,
     PaymentModule,
     ReportingModule,
+    TableSessionModule,
+    CustomerModule,
+    OtpModule,
+    LoyaltyModule,
+    PublicApiModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -7,17 +7,11 @@ import { BaseTenantRepository } from '../../../shared/base/base.repository';
 
 @Injectable()
 export class VenueRepository extends BaseTenantRepository<VenueDoc> {
-  constructor(
-    @InjectModel(VenueDoc.name) model: Model<VenueDoc>,
-    tenantCtx: TenantContextService,
-  ) {
+  constructor(@InjectModel(VenueDoc.name) model: Model<VenueDoc>, tenantCtx: TenantContextService) {
     super(model, tenantCtx);
   }
 
   async findByCode(tenantId: string, code: string): Promise<VenueDoc | null> {
-    return this.model
-      .findOne({ tenantId, code, deletedAt: null })
-      .lean<VenueDoc>()
-      .exec();
+    return this.model.findOne({ tenantId, code, deletedAt: null }).lean<VenueDoc>().exec();
   }
 }

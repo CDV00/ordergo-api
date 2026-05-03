@@ -30,7 +30,17 @@ export class VenueDoc {
 
   @Prop({
     type: String,
-    enum: ['restaurant', 'cafe', 'bar', 'hotel', 'homestay', 'spa', 'gym', 'education', 'coworking'],
+    enum: [
+      'restaurant',
+      'cafe',
+      'bar',
+      'hotel',
+      'homestay',
+      'spa',
+      'gym',
+      'education',
+      'coworking',
+    ],
     required: true,
   })
   businessType!: BusinessType;
@@ -78,6 +88,16 @@ export class VenueDoc {
       vatRate: { type: Number, default: 0.08 },
       autoEinvoice: { type: Boolean, default: false },
       einvoiceProvider: { type: String, default: null },
+      bankAccount: {
+        type: {
+          bankBin: { type: String, default: null },
+          bankName: { type: String, default: null },
+          accountNumber: { type: String, default: null },
+          accountName: { type: String, default: null },
+        },
+        default: null,
+        _id: false,
+      },
     },
     default: () => ({}),
     _id: false,
@@ -87,6 +107,12 @@ export class VenueDoc {
     vatRate: number;
     autoEinvoice: boolean;
     einvoiceProvider: string | null;
+    bankAccount: {
+      bankBin: string | null;
+      bankName: string | null;
+      accountNumber: string | null;
+      accountName: string | null;
+    } | null;
   };
 
   @Prop({ type: Number, default: 1 })

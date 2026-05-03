@@ -10,12 +10,7 @@ export type PaymentMethod =
   | 'card'
   | 'bank_transfer';
 
-export type PaymentStatus =
-  | 'pending'
-  | 'succeeded'
-  | 'failed'
-  | 'refunded'
-  | 'partially_refunded';
+export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'refunded' | 'partially_refunded';
 
 const MoneyShape = {
   amount: { type: Number, required: true },

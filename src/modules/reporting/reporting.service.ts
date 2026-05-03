@@ -38,7 +38,10 @@ export class ReportingService {
     if (venueId) filter.venueId = venueId;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const orders = await this.orderModel.find(filter as any).lean<OrderDoc[]>().exec();
+    const orders = await this.orderModel
+      .find(filter as any)
+      .lean<OrderDoc[]>()
+      .exec();
 
     let cancelledCount = 0;
     let gross = 0;

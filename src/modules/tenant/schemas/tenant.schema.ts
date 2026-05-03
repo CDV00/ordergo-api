@@ -30,6 +30,10 @@ export class TenantDoc {
   @Prop({ type: String, required: true })
   name!: string;
 
+  /** URL-safe slug để route public QR — vd: cafe-abc trong /m/cafe-abc/t/xxx */
+  @Prop({ type: String, required: true, unique: true, index: true, lowercase: true })
+  slug!: string;
+
   @Prop({ type: String, default: null })
   legalName!: string | null;
 
@@ -42,7 +46,12 @@ export class TenantDoc {
   @Prop({ type: TenantPlan, default: () => ({}) })
   plan!: TenantPlan;
 
-  @Prop({ type: String, enum: ['active', 'suspended', 'cancelled'], default: 'active', index: true })
+  @Prop({
+    type: String,
+    enum: ['active', 'suspended', 'cancelled'],
+    default: 'active',
+    index: true,
+  })
   status!: TenantStatus;
 
   @Prop({

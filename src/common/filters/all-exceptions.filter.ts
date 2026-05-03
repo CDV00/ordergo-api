@@ -24,8 +24,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const httpCtx = host.switchToHttp();
     const res = httpCtx.getResponse<Response>();
     const req = httpCtx.getRequest<Request>();
-    const requestId =
-      (req.headers['x-request-id'] as string) ?? randomUUID();
+    const requestId = (req.headers['x-request-id'] as string) ?? randomUUID();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let body: ErrorBody = {
@@ -57,9 +56,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       this.logger.error(exception.message, exception.stack, requestId);
-      body.message = process.env.NODE_ENV === 'production'
-        ? body.message
-        : exception.message;
+      body.message = process.env.NODE_ENV === 'production' ? body.message : exception.message;
     }
 
     if (status >= 500) {
@@ -76,14 +73,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   private codeFromStatus(status: number): string {
     switch (status) {
-      case 400: return 'BAD_REQUEST';
-      case 401: return 'UNAUTHENTICATED';
-      case 403: return 'FORBIDDEN';
-      case 404: return 'NOT_FOUND';
-      case 409: return 'CONFLICT';
-      case 422: return 'UNPROCESSABLE';
-      case 429: return 'RATE_LIMITED';
-      default: return 'ERROR';
+      case 400:
+        return 'BAD_REQUEST';
+      case 401:
+        return 'UNAUTHENTICATED';
+      case 403:
+        return 'FORBIDDEN';
+      case 404:
+        return 'NOT_FOUND';
+      case 409:
+        return 'CONFLICT';
+      case 422:
+        return 'UNPROCESSABLE';
+      case 429:
+        return 'RATE_LIMITED';
+      default:
+        return 'ERROR';
     }
   }
 }

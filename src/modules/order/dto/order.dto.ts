@@ -27,14 +27,18 @@ export class CreateOrderDto {
   @IsOptional() @IsString() tableId?: string;
   @IsOptional() @IsString() customerId?: string;
 
-  @IsArray() @ArrayMaxSize(50)
-  @ValidateNested({ each: true }) @Type(() => OrderLineInput)
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => OrderLineInput)
   lines!: OrderLineInput[];
 }
 
 export class AddOrderLineDto {
-  @IsArray() @ArrayMaxSize(20)
-  @ValidateNested({ each: true }) @Type(() => OrderLineInput)
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => OrderLineInput)
   lines!: OrderLineInput[];
 }
 

@@ -6,9 +6,7 @@ import { TableService } from './table.service';
 import { TableController } from './table.controller';
 
 @Module({
-  imports: [
-    MongooseModule.forFeature([{ name: TableDoc.name, schema: TableSchema }]),
-  ],
+  imports: [MongooseModule.forFeature([{ name: TableDoc.name, schema: TableSchema }])],
   providers: [TableRepository, TableService],
   controllers: [TableController],
   exports: [TableRepository, TableService],

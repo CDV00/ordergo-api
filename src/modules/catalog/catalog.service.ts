@@ -1,15 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { MenuCategoryRepository } from './repositories/menu-category.repository';
 import { MenuItemRepository } from './repositories/menu-item.repository';
-import {
-  CreateMenuCategoryDto,
-  UpdateMenuCategoryDto,
-} from './dto/menu-category.dto';
-import {
-  CreateMenuItemDto,
-  ToggleAvailabilityDto,
-  UpdateMenuItemDto,
-} from './dto/menu-item.dto';
+import { CreateMenuCategoryDto, UpdateMenuCategoryDto } from './dto/menu-category.dto';
+import { CreateMenuItemDto, ToggleAvailabilityDto, UpdateMenuItemDto } from './dto/menu-item.dto';
 import { MenuCategoryDoc } from './schemas/menu-category.schema';
 import { MenuItemDoc } from './schemas/menu-item.schema';
 import { newId } from '../../shared/utils/uuid';
@@ -54,7 +47,10 @@ export class CatalogService {
   }
 
   // ─── Menu Items ───
-  async listItems(filter: { venueId?: string | null; categoryId?: string }): Promise<MenuItemDoc[]> {
+  async listItems(filter: {
+    venueId?: string | null;
+    categoryId?: string;
+  }): Promise<MenuItemDoc[]> {
     const f: Record<string, unknown> = {};
     if (filter.venueId !== undefined) f.venueId = filter.venueId;
     if (filter.categoryId) f.categoryId = filter.categoryId;
@@ -70,7 +66,10 @@ export class CatalogService {
       dto.variants?.map((v) => ({
         id: v.id ?? newId(),
         name: v.name,
-        priceModifier: { amount: v.priceModifier.amount, currency: v.priceModifier.currency ?? 'VND' },
+        priceModifier: {
+          amount: v.priceModifier.amount,
+          currency: v.priceModifier.currency ?? 'VND',
+        },
         isDefault: v.isDefault ?? false,
       })) ?? [];
 
@@ -83,7 +82,10 @@ export class CatalogService {
         options: g.options.map((o) => ({
           id: o.id ?? newId(),
           name: o.name,
-          priceModifier: { amount: o.priceModifier.amount, currency: o.priceModifier.currency ?? 'VND' },
+          priceModifier: {
+            amount: o.priceModifier.amount,
+            currency: o.priceModifier.currency ?? 'VND',
+          },
           isAvailable: o.isAvailable ?? true,
         })),
       })) ?? [];
@@ -121,7 +123,10 @@ export class CatalogService {
       set.variants = dto.variants.map((v) => ({
         id: v.id ?? newId(),
         name: v.name,
-        priceModifier: { amount: v.priceModifier.amount, currency: v.priceModifier.currency ?? 'VND' },
+        priceModifier: {
+          amount: v.priceModifier.amount,
+          currency: v.priceModifier.currency ?? 'VND',
+        },
         isDefault: v.isDefault ?? false,
       }));
     }
@@ -134,7 +139,10 @@ export class CatalogService {
         options: g.options.map((o) => ({
           id: o.id ?? newId(),
           name: o.name,
-          priceModifier: { amount: o.priceModifier.amount, currency: o.priceModifier.currency ?? 'VND' },
+          priceModifier: {
+            amount: o.priceModifier.amount,
+            currency: o.priceModifier.currency ?? 'VND',
+          },
           isAvailable: o.isAvailable ?? true,
         })),
       }));
@@ -146,7 +154,7 @@ export class CatalogService {
     return this.items.updateById(id, {
       $set: {
         isAvailable: dto.isAvailable,
-        unavailableReason: dto.isAvailable ? null : dto.unavailableReason ?? null,
+        unavailableReason: dto.isAvailable ? null : (dto.unavailableReason ?? null),
       },
     });
   }

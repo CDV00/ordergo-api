@@ -1,21 +1,7 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { TableService } from './table.service';
-import {
-  ChangeTableStatusDto,
-  CreateTableDto,
-  UpdateTableDto,
-} from './dto/table.dto';
+import { ChangeTableStatusDto, CreateTableDto, UpdateTableDto } from './dto/table.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Tables')

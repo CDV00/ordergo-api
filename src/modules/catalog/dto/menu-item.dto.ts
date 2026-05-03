@@ -36,7 +36,9 @@ class ToppingGroupDto {
   @IsString() @MinLength(1) @MaxLength(50) name!: string;
   @IsOptional() @IsInt() @Min(0) minSelect?: number;
   @IsOptional() @IsInt() @Min(1) maxSelect?: number;
-  @IsArray() @ValidateNested({ each: true }) @Type(() => ToppingOptionDto)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ToppingOptionDto)
   options!: ToppingOptionDto[];
 }
 
@@ -50,15 +52,23 @@ export class CreateMenuItemDto {
   @IsOptional() @IsString() imageUrl?: string;
   @IsOptional() @IsInt() @Min(0) displayOrder?: number;
 
-  @IsOptional() @IsArray() @ArrayMaxSize(20)
-  @ValidateNested({ each: true }) @Type(() => VariantDto)
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => VariantDto)
   variants?: VariantDto[];
 
-  @IsOptional() @IsArray() @ArrayMaxSize(10)
-  @ValidateNested({ each: true }) @Type(() => ToppingGroupDto)
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => ToppingGroupDto)
   toppingGroups?: ToppingGroupDto[];
 
-  @IsOptional() @IsArray() @IsString({ each: true })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   tags?: string[];
 }
 
@@ -70,11 +80,17 @@ export class UpdateMenuItemDto {
   @IsOptional() @ValidateNested() @Type(() => MoneyDto) basePrice?: MoneyDto;
   @IsOptional() @IsString() imageUrl?: string;
   @IsOptional() @IsInt() @Min(0) displayOrder?: number;
-  @IsOptional() @IsArray() @ArrayMaxSize(20)
-  @ValidateNested({ each: true }) @Type(() => VariantDto)
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => VariantDto)
   variants?: VariantDto[];
-  @IsOptional() @IsArray() @ArrayMaxSize(10)
-  @ValidateNested({ each: true }) @Type(() => ToppingGroupDto)
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => ToppingGroupDto)
   toppingGroups?: ToppingGroupDto[];
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
   @IsOptional() @IsBoolean() isAvailable?: boolean;

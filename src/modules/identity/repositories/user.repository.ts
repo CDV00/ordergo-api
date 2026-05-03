@@ -8,6 +8,31 @@ import { newId } from '../../../shared/utils/uuid';
 export class UserRepository {
   constructor(@InjectModel(UserDoc.name) private readonly model: Model<UserDoc>) {}
 
+  /**
+   * Customer-facing: tạo user "lite" qua phone OTP — không có password.
+   * passwordHash placeholder không cho login bằng password.
+   */
+  async createPasswordless(data: { phone: string; displayName: string }): Promise<UserDoc> {
+    const now = new Date();
+    const doc = await this.model.create({
+      id: newId(),
+      phone: data.phone,
+      email: null,
+      passwordHash: 'no-password-customer-passwordless',
+      displayName: data.displayName,
+      status: 'active',
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+      preferredLanguage: 'vi',
+      phoneVerifiedAt: now,
+      schemaVersion: 1,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    });
+    return doc.toObject() as UserDoc;
+  }
+
   async create(data: {
     phone: string;
     email?: string | null;

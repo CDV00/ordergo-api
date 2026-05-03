@@ -16,6 +16,6 @@ import { CatalogController } from './catalog.controller';
   ],
   providers: [MenuCategoryRepository, MenuItemRepository, CatalogService],
   controllers: [CatalogController],
-  exports: [MenuItemRepository],
+  exports: [MenuItemRepository, MenuCategoryRepository],
 })
 export class CatalogModule {}

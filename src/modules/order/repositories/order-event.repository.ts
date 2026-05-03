@@ -6,9 +6,7 @@ import { newId } from '../../../shared/utils/uuid';
 
 @Injectable()
 export class OrderEventRepository {
-  constructor(
-    @InjectModel(OrderEventDoc.name) private readonly model: Model<OrderEventDoc>,
-  ) {}
+  constructor(@InjectModel(OrderEventDoc.name) private readonly model: Model<OrderEventDoc>) {}
 
   async append(data: {
     tenantId: string;

@@ -1,25 +1,8 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CatalogService } from './catalog.service';
-import {
-  CreateMenuCategoryDto,
-  UpdateMenuCategoryDto,
-} from './dto/menu-category.dto';
-import {
-  CreateMenuItemDto,
-  ToggleAvailabilityDto,
-  UpdateMenuItemDto,
-} from './dto/menu-item.dto';
+import { CreateMenuCategoryDto, UpdateMenuCategoryDto } from './dto/menu-category.dto';
+import { CreateMenuItemDto, ToggleAvailabilityDto, UpdateMenuItemDto } from './dto/menu-item.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Catalog (F&B)')
@@ -55,10 +38,7 @@ export class CatalogController {
 
   // ── Menu Items ──
   @Get('menu-items')
-  listItems(
-    @Query('venueId') venueId?: string,
-    @Query('categoryId') categoryId?: string,
-  ) {
+  listItems(@Query('venueId') venueId?: string, @Query('categoryId') categoryId?: string) {
     return this.service.listItems({
       venueId: venueId === undefined ? undefined : venueId || null,
       categoryId,

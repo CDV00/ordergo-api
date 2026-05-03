@@ -11,9 +11,7 @@ function hashToken(raw: string): string {
 
 @Injectable()
 export class RefreshTokenRepository {
-  constructor(
-    @InjectModel(RefreshTokenDoc.name) private readonly model: Model<RefreshTokenDoc>,
-  ) {}
+  constructor(@InjectModel(RefreshTokenDoc.name) private readonly model: Model<RefreshTokenDoc>) {}
 
   async create(data: {
     userId: string;
@@ -51,6 +49,8 @@ export class RefreshTokenRepository {
   }
 
   async revokeAllForUser(userId: string): Promise<void> {
-    await this.model.updateMany({ userId, revokedAt: null }, { $set: { revokedAt: new Date() } }).exec();
+    await this.model
+      .updateMany({ userId, revokedAt: null }, { $set: { revokedAt: new Date() } })
+      .exec();
   }
 }

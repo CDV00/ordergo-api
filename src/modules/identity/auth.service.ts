@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
@@ -12,6 +8,7 @@ import { RefreshTokenRepository } from './repositories/refresh-token.repository'
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { MembershipRepository } from '../tenant/repositories/membership.repository';
+import { TenantRepository } from '../tenant/repositories/tenant.repository';
 import { UserDoc } from './schemas/user.schema';
 import { newId } from '../../shared/utils/uuid';
 
@@ -59,6 +56,7 @@ export class AuthService {
     private readonly users: UserRepository,
     private readonly tokens: RefreshTokenRepository,
     private readonly memberships: MembershipRepository,
+    private readonly tenants: TenantRepository,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {}
@@ -128,13 +126,41 @@ export class AuthService {
     if (rawToken) await this.tokens.revoke(rawToken);
   }
 
-  async me(userId: string): Promise<{ user: PublicUser; memberships: Awaited<ReturnType<MembershipRepository['findActiveByUser']>> }> {
+  async me(userId: string): Promise<{
+    user: PublicUser;
+    memberships: Awaited<ReturnType<MembershipRepository['findActiveByUser']>>;
+    tenants: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      status: string;
+    }>;
+  }> {
     const u = await this.users.findById(userId);
     if (!u) {
-      throw new UnauthorizedException({ code: 'USER_NOT_FOUND', message: 'Không tìm thấy tài khoản.' });
+      throw new UnauthorizedException({
+        code: 'USER_NOT_FOUND',
+        message: 'Không tìm thấy tài khoản.',
+      });
     }
     const memberships = await this.memberships.findActiveByUser(userId);
-    return { user: toPublic(u), memberships };
+
+    // Hydrate tenant info — cần slug cho features như QR generation
+    const tenantIds = [...new Set(memberships.map((m) => m.tenantId))];
+    const tenantDocs = await Promise.all(tenantIds.map((id) => this.tenants.findById(id)));
+    const validDocs = tenantDocs.filter((t): t is NonNullable<typeof t> => t !== null);
+
+    // Lazy backfill: tenant cũ tạo trước khi schema có `slug` field → auto generate
+    const hydrated = await Promise.all(validDocs.map((t) => this.tenants.ensureSlug(t)));
+
+    const tenants = hydrated.map((t) => ({
+      id: t.id,
+      name: t.name,
+      slug: t.slug,
+      status: t.status,
+    }));
+
+    return { user: toPublic(u), memberships, tenants };
   }
 
   private async buildAuthResult(user: UserDoc): Promise<AuthResult> {
@@ -191,10 +217,13 @@ export class AuthService {
     const n = parseInt(m[1], 10);
     const unit = m[2];
     const ms =
-      unit === 's' ? n * 1000 :
-      unit === 'm' ? n * 60_000 :
-      unit === 'h' ? n * 3_600_000 :
-      n * 86_400_000;
+      unit === 's'
+        ? n * 1000
+        : unit === 'm'
+          ? n * 60_000
+          : unit === 'h'
+            ? n * 3_600_000
+            : n * 86_400_000;
     return new Date(now + ms);
   }
 

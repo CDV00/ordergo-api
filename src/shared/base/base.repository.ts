@@ -32,11 +32,13 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
   }
 
   async findById(id: string, opts: FindOptions = {}): Promise<TDoc | null> {
-    return this.model
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .findOne(this.mergeFilter({ id }, opts.includeDeleted) as any)
-      .lean<TDoc>()
-      .exec();
+    return (
+      this.model
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .findOne(this.mergeFilter({ id }, opts.includeDeleted) as any)
+        .lean<TDoc>()
+        .exec()
+    );
   }
 
   async findByIdOrFail(id: string, opts: FindOptions = {}): Promise<TDoc> {
@@ -52,11 +54,13 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
   }
 
   async findOne(filter: LooseFilter, opts: FindOptions = {}): Promise<TDoc | null> {
-    return this.model
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .findOne(this.mergeFilter(filter, opts.includeDeleted) as any)
-      .lean<TDoc>()
-      .exec();
+    return (
+      this.model
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .findOne(this.mergeFilter(filter, opts.includeDeleted) as any)
+        .lean<TDoc>()
+        .exec()
+    );
   }
 
   async find(filter: LooseFilter = {}, opts: FindOptions = {}): Promise<TDoc[]> {
@@ -69,10 +73,12 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
   }
 
   async count(filter: LooseFilter = {}, opts: FindOptions = {}): Promise<number> {
-    return this.model
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .countDocuments(this.mergeFilter(filter, opts.includeDeleted) as any)
-      .exec();
+    return (
+      this.model
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .countDocuments(this.mergeFilter(filter, opts.includeDeleted) as any)
+        .exec()
+    );
   }
 
   async create(data: Partial<TDoc>): Promise<TDoc> {

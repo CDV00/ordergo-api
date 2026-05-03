@@ -6,9 +6,7 @@ import { newId } from '../../../shared/utils/uuid';
 
 @Injectable()
 export class MembershipRepository {
-  constructor(
-    @InjectModel(MembershipDoc.name) private readonly model: Model<MembershipDoc>,
-  ) {}
+  constructor(@InjectModel(MembershipDoc.name) private readonly model: Model<MembershipDoc>) {}
 
   async create(data: {
     tenantId: string;
@@ -47,10 +45,7 @@ export class MembershipRepository {
       .exec();
   }
 
-  async findByUserAndTenant(
-    userId: string,
-    tenantId: string,
-  ): Promise<MembershipDoc | null> {
+  async findByUserAndTenant(userId: string, tenantId: string): Promise<MembershipDoc | null> {
     return this.model
       .findOne({ userId, tenantId, status: 'active', deletedAt: null })
       .lean<MembershipDoc>()
@@ -58,9 +53,6 @@ export class MembershipRepository {
   }
 
   async findByTenant(tenantId: string): Promise<MembershipDoc[]> {
-    return this.model
-      .find({ tenantId, deletedAt: null })
-      .lean<MembershipDoc[]>()
-      .exec();
+    return this.model.find({ tenantId, deletedAt: null }).lean<MembershipDoc[]>().exec();
   }
 }

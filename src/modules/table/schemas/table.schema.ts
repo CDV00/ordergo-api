@@ -1,12 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type TableStatus =
-  | 'available'
-  | 'occupied'
-  | 'reserved'
-  | 'cleaning'
-  | 'out_of_order';
+export type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning' | 'out_of_order';
 
 @Schema({ collection: 'tables' })
 export class TableDoc {

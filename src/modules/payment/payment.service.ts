@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PaymentRepository } from './repositories/payment.repository';
 import { OrderRepository } from '../order/repositories/order.repository';
 import { OrderEventRepository } from '../order/repositories/order-event.repository';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 import { TenantContextService } from '../../common/context/tenant-context.service';
 import { CreatePaymentDto, RefundPaymentDto } from './dto/payment.dto';
 import { newId } from '../../shared/utils/uuid';
@@ -13,6 +14,7 @@ export class PaymentService {
     private readonly payments: PaymentRepository,
     private readonly orders: OrderRepository,
     private readonly events: OrderEventRepository,
+    private readonly loyalty: LoyaltyService,
     private readonly tenantCtx: TenantContextService,
   ) {}
 
@@ -20,7 +22,10 @@ export class PaymentService {
     return this.payments.findByOrder(orderId);
   }
 
-  async createForOrder(orderId: string, dto: CreatePaymentDto): Promise<{
+  async createForOrder(
+    orderId: string,
+    dto: CreatePaymentDto,
+  ): Promise<{
     payment: PaymentDoc;
     order: import('../order/schemas/order.schema').OrderDoc;
     paidTotal: number;
@@ -37,10 +42,7 @@ export class PaymentService {
     const previous = await this.payments.findByOrder(orderId);
     const paidBefore = previous
       .filter((p) => p.status === 'succeeded' || p.status === 'partially_refunded')
-      .reduce(
-        (acc, p) => acc + (p.amount.amount - p.refundedAmount.amount),
-        0,
-      );
+      .reduce((acc, p) => acc + (p.amount.amount - p.refundedAmount.amount), 0);
     if (paidBefore + dto.amount > totalDue) {
       throw new BadRequestException({
         code: 'OVERPAY',
@@ -80,6 +82,23 @@ export class PaymentService {
           total: totalDue,
         },
       });
+
+      // Loyalty earn — chỉ verified customer (anonymous bị skip trong service)
+      if (order.customerId) {
+        try {
+          await this.loyalty.earnFromOrder({
+            tenantId: order.tenantId,
+            customerId: order.customerId,
+            orderId: order.id,
+            orderTotal: totalDue,
+          });
+        } catch (err) {
+          // Không fail payment nếu loyalty fail — log + tiếp tục
+          // (worker sẽ retry qua outbox sau này)
+          // eslint-disable-next-line no-console
+          console.error('[loyalty.earn] failed', err);
+        }
+      }
     }
 
     return { payment, order: updatedOrder, paidTotal: paidNow, totalDue };
