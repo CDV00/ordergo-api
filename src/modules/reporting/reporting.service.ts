@@ -3,8 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { OrderDoc } from '../order/schemas/order.schema';
 import { TenantContextService } from '../../common/context/tenant-context.service';
-import { VenueRepository } from '../tenant/repositories/venue.repository';
-import { dayRange, DEFAULT_TIMEZONE, hourIn } from '../../shared/utils/time';
+import { dayRange, hourIn } from '../../shared/utils/time';
+import { buildByVenue, ReportScopeService, VenueBreakdownRow } from './report-scope';
 
 export interface DailySalesSummary {
   date: string;
@@ -14,6 +14,8 @@ export interface DailySalesSummary {
   byPaymentStatus: { paid: number; pending: number };
   byHour: Array<{ hour: number; orderCount: number; revenue: number }>;
   topItems: Array<{ menuItemId: string; name: string; quantity: number; revenue: number }>;
+  /** Chỉ có khi `venueId=all`: revenue = đã thu (đơn paid) theo từng chi nhánh. */
+  byVenue?: VenueBreakdownRow[];
 }
 
 @Injectable()
@@ -21,14 +23,17 @@ export class ReportingService {
   constructor(
     @InjectModel(OrderDoc.name) private readonly orderModel: Model<OrderDoc>,
     private readonly tenantCtx: TenantContextService,
-    private readonly venues: VenueRepository,
+    private readonly scopes: ReportScopeService,
   ) {}
 
-  /** Tổng hợp doanh thu 1 ngày (YYYY-MM-DD, mặc định hôm nay) theo múi giờ của cơ sở. */
+  /**
+   * Tổng hợp doanh thu 1 ngày (YYYY-MM-DD, mặc định hôm nay) theo múi giờ của cơ sở.
+   * `venueId=all` → gộp mọi cơ sở (chỉ quyền toàn chuỗi) + `byVenue[]`.
+   */
   async dailySummary(venueId?: string | null, date?: string | null): Promise<DailySalesSummary> {
     const tenantId = this.tenantCtx.tenantId();
-    const venue = venueId ? await this.venues.findById(venueId) : null;
-    const timezone = venue?.timezone ?? DEFAULT_TIMEZONE;
+    const scope = await this.scopes.resolve(venueId);
+    const timezone = scope.timezone;
     const { ymd, start, end } = dayRange(date, timezone);
 
     const filter: Record<string, unknown> = {
@@ -36,7 +41,9 @@ export class ReportingService {
       deletedAt: null,
       createdAt: { $gte: start, $lte: end },
     };
-    if (venueId) filter.venueId = venueId;
+    if (scope.venueId) filter.venueId = scope.venueId;
+    const paidByVenue = new Map<string, number>();
+    const ordersByVenue = new Map<string, { count: number; gross: number }>();
 
     const orders = await this.orderModel
       .find(filter as any)
@@ -61,6 +68,15 @@ export class ReportingService {
       gross += o.pricing.total.amount;
       if (o.status === 'paid') paid += o.pricing.total.amount;
       else pending += o.pricing.total.amount;
+      if (scope.all) {
+        const v = ordersByVenue.get(o.venueId) ?? { count: 0, gross: 0 };
+        v.count += 1;
+        v.gross += o.pricing.total.amount;
+        ordersByVenue.set(o.venueId, v);
+        if (o.status === 'paid') {
+          paidByVenue.set(o.venueId, (paidByVenue.get(o.venueId) ?? 0) + o.pricing.total.amount);
+        }
+      }
 
       const h = hourIn(new Date(o.createdAt), timezone);
       const cur = hourMap.get(h) ?? { orderCount: 0, revenue: 0 };
@@ -95,7 +111,7 @@ export class ReportingService {
 
     return {
       date: ymd,
-      venueId: venueId ?? null,
+      venueId: scope.all ? 'all' : scope.venueId,
       orders: {
         count: orders.length - cancelledCount,
         cancelledCount,
@@ -104,6 +120,7 @@ export class ReportingService {
       byPaymentStatus: { paid, pending },
       byHour,
       topItems,
+      ...(scope.all ? { byVenue: buildByVenue(scope.venues, paidByVenue, ordersByVenue) } : {}),
     };
   }
 }

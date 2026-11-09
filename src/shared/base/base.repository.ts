@@ -110,6 +110,41 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
     return (created as { toObject(): TDoc }).toObject();
   }
 
+  /** Tạo nhiều bản ghi trong tenant hiện tại (1 lần insertMany) — giữ `id` nếu đã có sẵn. */
+  async createMany(rows: Array<Partial<TDoc>>): Promise<number> {
+    if (rows.length === 0) return 0;
+    const userId = this.tenantCtx.current()?.userId ?? null;
+    const tenantId = this.tenantCtx.tenantId();
+    const now = new Date();
+    const docs = rows.map((data) => ({
+      id: newId(),
+      schemaVersion: 1,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: userId,
+      updatedBy: userId,
+      deletedAt: null,
+      ...data,
+      tenantId,
+    }));
+    const created = await this.model.insertMany(docs as any);
+    return created.length;
+  }
+
+  /** Xoá mềm mọi bản ghi khớp `filter` trong tenant hiện tại; trả về số bản ghi bị xoá. */
+  async softDeleteMany(filter: LooseFilter): Promise<number> {
+    const userId = this.tenantCtx.current()?.userId ?? null;
+    const now = new Date();
+    const res = await this.model
+      .updateMany(
+        this.mergeFilter(filter) as any,
+
+        { $set: { deletedAt: now, updatedAt: now, updatedBy: userId } } as any,
+      )
+      .exec();
+    return res.modifiedCount;
+  }
+
   async updateById(id: string, patch: LooseUpdate): Promise<TDoc> {
     const userId = this.tenantCtx.current()?.userId ?? null;
     const setClause = {

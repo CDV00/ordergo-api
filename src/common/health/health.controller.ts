@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection, ConnectionStates } from 'mongoose';
@@ -19,11 +19,16 @@ export class HealthController {
 
   @Public()
   @Get('health/ready')
+  /** 200 khi sẵn sàng nhận request; 503 khi chưa kết nối Mongo (load balancer / dashboard dựa vào mã này). */
   ready() {
     const ok = this.mongo.readyState === ConnectionStates.connected;
-    return {
-      status: ok ? 'ready' : 'not_ready',
-      mongo: ok ? 'connected' : `state_${this.mongo.readyState}`,
-    };
+    if (!ok) {
+      throw new ServiceUnavailableException({
+        code: 'NOT_READY',
+        message: 'Chưa kết nối được cơ sở dữ liệu.',
+        details: { mongo: `state_${this.mongo.readyState}` },
+      });
+    }
+    return { status: 'ready', mongo: 'connected' };
   }
 }

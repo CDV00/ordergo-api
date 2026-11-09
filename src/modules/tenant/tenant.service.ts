@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { VN_BANK_BINS } from '../../shared/utils/vietqr';
 import { TenantRepository } from './repositories/tenant.repository';
 import { VenueRepository } from './repositories/venue.repository';
@@ -10,6 +10,7 @@ import { TenantContextService } from '../../common/context/tenant-context.servic
 import { TenantDoc } from './schemas/tenant.schema';
 import { VenueDoc } from './schemas/venue.schema';
 import { MembershipDoc } from './schemas/membership.schema';
+import { canAccessVenue, TenantAccessService } from './tenant-access.service';
 
 @Injectable()
 export class TenantService {
@@ -18,6 +19,7 @@ export class TenantService {
     private readonly venues: VenueRepository,
     private readonly memberships: MembershipRepository,
     private readonly tenantCtx: TenantContextService,
+    private readonly access: TenantAccessService,
   ) {}
 
   /**
@@ -87,12 +89,21 @@ export class TenantService {
     return { tenant, venue, membership };
   }
 
+  /** Cũ → mới: cơ sở đầu tiên (tạo ở setup wizard) luôn đứng đầu — web chọn nó làm mặc định. */
   async listVenues(): Promise<VenueDoc[]> {
-    return this.venues.find({}, { sort: { createdAt: -1 } });
+    return this.venues.find({}, { sort: { createdAt: 1 } });
   }
 
   async createVenue(dto: CreateVenueDto): Promise<VenueDoc> {
     const tenantId = this.tenantCtx.tenantId();
+    // Quản lý gắn 1 cơ sở cũng có `venue.manage` nhưng chỉ chủ/quản trị toàn chuỗi mới mở chi nhánh.
+    const scope = await this.access.venueScope(this.tenantCtx.userId(), tenantId);
+    if (!scope.tenantWide) {
+      throw new ForbiddenException({
+        code: 'VENUE_ACCESS_DENIED',
+        message: 'Chỉ chủ quán hoặc quản trị toàn chuỗi mới tạo được chi nhánh.',
+      });
+    }
     const dup = await this.venues.findByCode(tenantId, dto.code.toUpperCase());
     if (dup) {
       throw new ConflictException({
@@ -106,11 +117,29 @@ export class TenantService {
       businessType: dto.businessType,
       address: { line1: dto.addressLine1, city: dto.city, country: 'VN' },
       contact: { phone: dto.phone },
+      timezone: 'Asia/Ho_Chi_Minh',
+      currency: 'VND',
       status: 'active',
+      settings: {
+        serviceChargeRate: 0,
+        vatRate: 0.08,
+        autoEinvoice: false,
+        einvoiceProvider: null,
+        bankAccount: null,
+      },
     } as Partial<VenueDoc>);
   }
 
   async updateVenue(id: string, dto: UpdateVenueDto): Promise<VenueDoc> {
+    // Quản lý gắn cơ sở chỉ sửa được cơ sở của mình.
+    const scope = await this.access.venueScope(this.tenantCtx.userId(), this.tenantCtx.tenantId());
+    if (!canAccessVenue(scope, id)) {
+      throw new ForbiddenException({
+        code: 'VENUE_ACCESS_DENIED',
+        message: 'Bạn không có quyền truy cập cơ sở này.',
+        details: { venueId: id },
+      });
+    }
     const patch: Record<string, unknown> = { $set: {} };
     const set = patch.$set as Record<string, unknown>;
     if (dto.name !== undefined) set.name = dto.name;

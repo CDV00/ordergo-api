@@ -1,18 +1,18 @@
-import { ForbiddenException, HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, PipelineStage } from 'mongoose';
 import { OrderDoc } from '../order/schemas/order.schema';
 import { PaymentDoc } from '../payment/schemas/payment.schema';
 import { UserDoc } from '../identity/schemas/user.schema';
 import { TenantContextService } from '../../common/context/tenant-context.service';
-import { VenueRepository } from '../tenant/repositories/venue.repository';
 import { MembershipRepository } from '../tenant/repositories/membership.repository';
 import { AuditService } from '../audit/audit.module';
-import { DEFAULT_TIMEZONE } from '../../shared/utils/time';
 import { maskName } from '../../shared/utils/mask';
 import { formatStamp, resolveRange, ReportRange, zeroFillDaily } from './report-range';
 import { buildSalesCsv } from './sales-report.csv';
 import type { SalesReport } from './sales-report.types';
+import { buildByVenue, ReportScope, ReportScopeService } from './report-scope';
+import type { VenueDoc } from '../tenant/schemas/venue.schema';
 
 /** Trạng thái payment được tính là "đã thu" (refunded vẫn tính, phần hoàn trừ riêng). */
 const COLLECTED_STATUSES = ['succeeded', 'partially_refunded', 'refunded'];
@@ -36,33 +36,16 @@ export class SalesReportService {
     @InjectModel(PaymentDoc.name) private readonly paymentModel: Model<PaymentDoc>,
     @InjectModel(UserDoc.name) private readonly userModel: Model<UserDoc>,
     private readonly tenantCtx: TenantContextService,
-    private readonly venues: VenueRepository,
+    private readonly scopes: ReportScopeService,
     private readonly memberships: MembershipRepository,
     private readonly audit: AuditService,
   ) {}
 
-  /**
-   * Venue hiệu lực: query `venueId` ?? venue của context. Nhân viên gắn 1 venue (hoặc đã chọn venue
-   * qua header) không được xem venue khác. Venue phải thuộc tenant (404 nếu không).
-   */
-  private async resolveVenue(venueId?: string | null) {
-    const ctx = this.tenantCtx.required();
-    const id = venueId || ctx.venueId || null;
-    if (ctx.venueId && id !== ctx.venueId) {
-      throw new ForbiddenException({
-        code: 'VENUE_ACCESS_DENIED',
-        message: 'Bạn không có quyền truy cập cơ sở này.',
-        details: { venueId: id },
-      });
-    }
-    const venue = id ? await this.venues.findByIdOrFail(id) : null;
-    return { venueId: id, venue, timezone: venue?.timezone || DEFAULT_TIMEZONE };
-  }
-
+  /** `venueId=all` → gộp mọi cơ sở (chỉ người có quyền toàn chuỗi) + `byVenue[]`. */
   async salesReport(venueId?: string | null, from?: string, to?: string): Promise<SalesReport> {
-    const v = await this.resolveVenue(venueId);
+    const v = await this.scopes.resolve(venueId);
     const range = resolveRange(from, to, v.timezone);
-    return this.build(v.venueId, v.timezone, range);
+    return this.build(v, range);
   }
 
   /** Xuất CSV: kiểm giới hạn TRƯỚC khi dựng, ghi audit, đóng dấu người xuất (tên đã che). */
@@ -71,7 +54,7 @@ export class SalesReportService {
     from?: string,
     to?: string,
   ): Promise<{ filename: string; content: string }> {
-    const v = await this.resolveVenue(venueId);
+    const v = await this.scopes.resolve(venueId);
     const range = resolveRange(from, to, v.timezone);
 
     const recent = await this.audit.countRecent(EXPORT_ACTION, HOUR_MS);
@@ -85,14 +68,14 @@ export class SalesReportService {
       );
     }
 
-    const report = await this.build(v.venueId, v.timezone, range);
+    const report = await this.build(v, range);
     const operator = await this.userModel
       .findOne({ id: this.tenantCtx.userId() }, { displayName: 1 })
       .lean<Pick<UserDoc, 'displayName'>>()
       .exec();
     const stampLine = `Xuất bởi: ${maskName(operator?.displayName) ?? '—'} · ${formatStamp(new Date(), v.timezone)}`;
     const { content, rows } = buildSalesCsv(report, {
-      venueName: v.venue?.name ?? null,
+      venueName: v.all ? 'Tất cả cơ sở' : (v.venue?.name ?? null),
       stampLine,
     });
 
@@ -100,18 +83,21 @@ export class SalesReportService {
       action: EXPORT_ACTION,
       entityType: 'sales_report',
       entityId: v.venueId,
-      metadata: { from: range.from, to: range.to, rows },
+      metadata: v.all
+        ? { from: range.from, to: range.to, rows, venues: v.venues.length }
+        : { from: range.from, to: range.to, rows },
     });
 
     return { filename: `bao-cao-${range.from}_${range.to}.csv`, content };
   }
 
-  private async build(
-    venueId: string | null,
-    timezone: string,
-    range: ReportRange,
-  ): Promise<SalesReport> {
+  private async build(v: ReportScope, range: ReportRange): Promise<SalesReport> {
+    const { venueId, timezone } = v;
+    const allVenues: VenueDoc[] | null = v.all ? v.venues : null;
     const tenantId = this.tenantCtx.tenantId();
+    // Chỉ khi xem toàn chuỗi mới cần tách theo cơ sở
+    const byVenueFacet = (facet: Record<string, unknown>) =>
+      allVenues ? { byVenue: [{ $group: { _id: '$venueId', ...facet } }] } : {};
     const scope: Record<string, unknown> = { tenantId, deletedAt: null };
     if (venueId) scope.venueId = venueId;
     const day = (field: string) => ({
@@ -149,6 +135,7 @@ export class SalesReportService {
                   },
                 },
               ],
+              ...byVenueFacet({ amount: { $sum: '$amount.amount' } }),
             },
           },
         ] as PipelineStage[])
@@ -180,6 +167,7 @@ export class SalesReportService {
               byMethod: [
                 { $group: { _id: '$method', amount: { $sum: '$refunds.amount.amount' } } },
               ],
+              ...byVenueFacet({ amount: { $sum: '$refunds.amount.amount' } }),
             },
           },
         ] as PipelineStage[])
@@ -245,6 +233,20 @@ export class SalesReportService {
                 { $sort: { quantity: -1, revenue: -1, _id: 1 } },
                 { $limit: 20 },
               ],
+              ...(allVenues
+                ? {
+                    byVenue: [
+                      { $match: { status: { $ne: 'cancelled' } } },
+                      {
+                        $group: {
+                          _id: '$venueId',
+                          count: { $sum: 1 },
+                          amount: { $sum: '$pricing.total.amount' },
+                        },
+                      },
+                    ],
+                  }
+                : {}),
             },
           },
         ] as PipelineStage[])
@@ -297,8 +299,21 @@ export class SalesReportService {
       (o.byCreator ?? []) as unknown as Bucket[],
     );
 
+    const byVenue = allVenues
+      ? buildByVenue(
+          allVenues,
+          netBy<string>(p.byVenue, r.byVenue),
+          new Map(
+            ((o.byVenue ?? []) as unknown as Bucket[]).map((b) => [
+              String(b._id),
+              { count: b.count ?? 0, gross: b.amount ?? 0 },
+            ]),
+          ),
+        )
+      : undefined;
+
     return {
-      venueId,
+      venueId: v.all ? 'all' : venueId,
       timezone,
       from: range.from,
       to: range.to,
@@ -328,6 +343,7 @@ export class SalesReportService {
         revenue: revenueByHour.get(h) ?? 0,
       })),
       byStaff,
+      ...(byVenue ? { byVenue } : {}),
     };
   }
 

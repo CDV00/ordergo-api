@@ -9,6 +9,7 @@ import { OrderController } from './order.controller';
 import { CatalogModule } from '../catalog/catalog.module';
 import { TableModule } from '../table/table.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { CustomerModule } from '../customer/customer.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { TenantModule } from '../tenant/tenant.module';
     CatalogModule,
     TableModule,
     TenantModule,
+    CustomerModule,
   ],
   providers: [OrderRepository, OrderEventRepository, OrderService],
   controllers: [OrderController],

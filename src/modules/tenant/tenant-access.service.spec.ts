@@ -2,8 +2,10 @@ import { ForbiddenException } from '@nestjs/common';
 import {
   AccessMembership,
   AccessRequest,
+  canAccessVenue,
   resolveTenantAccess,
   VenueInTenantCheck,
+  venueScopeOf,
 } from './tenant-access.service';
 
 const TENANT_A = 'tenant-a';
@@ -135,5 +137,21 @@ describe('resolveTenantAccess', () => {
   it('user chưa có doanh nghiệp: không tenant, không quyền', async () => {
     const r = await resolveTenantAccess([], req({}), venueInTenant);
     expect(r).toEqual({ tenantId: null, venueId: null, permissions: [] });
+  });
+});
+
+describe('venueScopeOf / canAccessVenue', () => {
+  it('membership toàn tenant → vào mọi cơ sở', () => {
+    const scope = venueScopeOf([{ venueId: null }, { venueId: VENUE_A1 }]);
+    expect(scope).toEqual({ tenantWide: true, venueIds: [VENUE_A1] });
+    expect(canAccessVenue(scope, VENUE_A2)).toBe(true);
+  });
+
+  it('chỉ membership gắn cơ sở → đúng các cơ sở đó', () => {
+    const scope = venueScopeOf([{ venueId: VENUE_A1 }, { venueId: VENUE_A1 }]);
+    expect(scope).toEqual({ tenantWide: false, venueIds: [VENUE_A1] });
+    expect(canAccessVenue(scope, VENUE_A1)).toBe(true);
+    expect(canAccessVenue(scope, VENUE_A2)).toBe(false);
+    expect(canAccessVenue(venueScopeOf([]), VENUE_A1)).toBe(false);
   });
 });

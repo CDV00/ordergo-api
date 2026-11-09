@@ -147,8 +147,15 @@ export class PublicApiService {
       async () => {
         const venue = await this.venues.findByIdOrFail(session.venueId);
         const [categories, items] = await Promise.all([
-          this.menuCategories.find({ isActive: true }, { sort: { displayOrder: 1, createdAt: 1 } }),
-          this.menuItems.find({}, { sort: { displayOrder: 1, createdAt: 1 } }),
+          // Menu của cơ sở có bàn này + menu dùng chung toàn chuỗi (venueId=null)
+          this.menuCategories.find(
+            { isActive: true, venueId: { $in: [session.venueId, null] } },
+            { sort: { displayOrder: 1, createdAt: 1 } },
+          ),
+          this.menuItems.find(
+            { venueId: { $in: [session.venueId, null] } },
+            { sort: { displayOrder: 1, createdAt: 1 } },
+          ),
         ]);
         return {
           venue: { id: venue.id, name: venue.name, currency: venue.currency },
@@ -184,7 +191,8 @@ export class PublicApiService {
         const lines = await Promise.all(
           dto.lines.map(async (input) => {
             const item = await this.menuItems.findById(input.menuItemId);
-            if (!item) {
+            // Món của chi nhánh khác coi như không có ở cơ sở này
+            if (!item || (item.venueId !== null && item.venueId !== session.venueId)) {
               throw new NotFoundException({
                 code: 'MENU_ITEM_NOT_FOUND',
                 message: 'Một món trong giỏ không còn nữa.',
