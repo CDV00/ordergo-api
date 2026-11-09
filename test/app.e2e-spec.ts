@@ -13,6 +13,7 @@ process.env.MONGODB_URI =
   process.env.E2E_MONGODB_URI ?? 'mongodb://localhost:27017/?directConnection=true';
 process.env.MONGODB_DB = 'ordergo_e2e';
 process.env.NODE_ENV = 'test';
+process.env.THROTTLE_DISABLED = '1';
 
 // Import sau khi set env để ConfigModule đọc đúng giá trị.
 // eslint-disable-next-line @typescript-eslint/no-require-imports

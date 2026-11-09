@@ -42,6 +42,17 @@ describe('Upload ảnh (e2e)', () => {
     const file = await http().get(url).expect(200);
     expect(file.headers['content-type']).toBe('image/png');
     expect(file.headers['x-content-type-options']).toBe('nosniff');
+    // helmet mặc định CORP same-origin; /uploads phải cho web khác origin nhúng ảnh.
+    expect(file.headers['cross-origin-resource-policy']).toBe('cross-origin');
+  });
+
+  it('ảnh ~1.5MB vẫn upload được (giới hạn body JSON 100kb không áp cho multipart)', async () => {
+    const medium = Buffer.concat([PNG_1X1, Buffer.alloc(1536 * 1024)]);
+    await http()
+      .post('/v1/uploads/images')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .attach('file', medium, { filename: 'vua.png', contentType: 'image/png' })
+      .expect(201);
   });
 
   it('từ chối file không phải ảnh dù đặt tên .png / mimetype ảnh', async () => {

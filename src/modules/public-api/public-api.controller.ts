@@ -21,6 +21,7 @@ import {
 } from './guards/public-session.guard';
 import { PublicCreateOrderDto } from './dto/public-order.dto';
 import { RequestOtpDto, VerifyOtpClaimDto } from './dto/claim.dto';
+import { RATE_LIMITS, RateLimit } from '../../common/throttle/throttle';
 
 const COOKIE_MAX_AGE_SEC = 6 * 60 * 60; // 6h
 const CUSTOMER_COOKIE_MAX_AGE_SEC = 30 * 24 * 60 * 60; // 30d
@@ -61,6 +62,7 @@ export class PublicApiController {
    * - Return session info để FE redirect đến /m/.../menu
    */
   @Post('qr/:tenantSlug/:tableId')
+  @RateLimit(RATE_LIMITS.publicQr)
   async scan(
     @Param('tenantSlug') tenantSlug: string,
     @Param('tableId') tableId: string,
@@ -129,6 +131,7 @@ export class PublicApiController {
   }
 
   @Post('sessions/:sessionId/orders')
+  @RateLimit(RATE_LIMITS.publicQr)
   @UseGuards(PublicSessionGuard)
   async createOrder(@Req() req: Request, @Body() dto: PublicCreateOrderDto) {
     const ctx = req.publicSession as PublicSessionContext;
@@ -152,11 +155,13 @@ export class PublicApiController {
   // (KHÔNG bind sessionId vì khách có thể claim ngoài session bất kỳ)
 
   @Post('auth/otp/request')
+  @RateLimit(RATE_LIMITS.otpRequest) // + OtpService: 1 OTP/SĐT/30s
   async requestOtp(@Body() dto: RequestOtpDto, @Req() req: Request) {
     return this.service.requestClaimOtp(dto.phone, req.ip);
   }
 
   @Post('sessions/:sessionId/claim')
+  @RateLimit(RATE_LIMITS.publicQr)
   @UseGuards(PublicSessionGuard)
   async claimWithOtp(@Req() req: Request, @Body() dto: VerifyOtpClaimDto) {
     const ctx = req.publicSession as PublicSessionContext;
@@ -170,6 +175,7 @@ export class PublicApiController {
   }
 
   @Post('sessions/:sessionId/orders/:orderId/payment-qr')
+  @RateLimit(RATE_LIMITS.publicQr)
   @UseGuards(PublicSessionGuard)
   async generatePaymentQr(@Req() req: Request, @Param('orderId') orderId: string) {
     const ctx = req.publicSession as PublicSessionContext;

@@ -32,6 +32,8 @@ import { OrderService } from '../modules/order/order.service';
 import { OrderDoc } from '../modules/order/schemas/order.schema';
 import { PaymentService } from '../modules/payment/payment.service';
 import { PaymentDoc } from '../modules/payment/schemas/payment.schema';
+import { CustomerDoc } from '../modules/customer/schemas/customer.schema';
+import { newId } from '../shared/utils/uuid';
 
 // ─── Cấu hình demo ─────────────────────────────────────────────────────────
 
@@ -44,6 +46,31 @@ const STAFF: Array<{ phone: string; name: string; role: RoleCode | 'owner' }> = 
   { phone: '0900000003', name: 'Lê Thu Hà', role: 'cashier' },
   { phone: '0900000004', name: 'Phạm Gia Huy', role: 'server' },
   { phone: '0900000005', name: 'Võ Thanh Tâm', role: 'kitchen' },
+];
+
+/**
+ * Khách thành viên — dữ liệu TỔNG HỢP (không phải người thật, không gửi SMS/email cho ai).
+ * `weight` = độ "ruột" khi gán vào đơn lịch sử.
+ */
+const DEMO_CUSTOMERS: Array<{ name: string; weight: number; birthday: string; tags?: string[] }> = [
+  { name: 'Nguyễn Thị Mai', weight: 8, birthday: '1995-03-12', tags: ['khách quen'] },
+  { name: 'Trần Văn Hùng', weight: 7, birthday: '1988-07-02', tags: ['khách quen'] },
+  { name: 'Lê Hoàng Nam', weight: 6, birthday: '1999-11-20' },
+  { name: 'Phạm Ngọc Anh', weight: 5, birthday: '2001-01-08', tags: ['sinh viên'] },
+  { name: 'Hoàng Minh Tuấn', weight: 5, birthday: '1992-05-30' },
+  { name: 'Vũ Thu Trang', weight: 4, birthday: '1997-09-14' },
+  { name: 'Đặng Quốc Khánh', weight: 4, birthday: '1985-12-25', tags: ['văn phòng'] },
+  { name: 'Bùi Thanh Hương', weight: 3, birthday: '1994-04-17' },
+  { name: 'Đỗ Gia Bảo', weight: 3, birthday: '2003-08-09', tags: ['sinh viên'] },
+  { name: 'Hồ Thị Lan', weight: 3, birthday: '1990-02-03' },
+  { name: 'Ngô Đức Thịnh', weight: 2, birthday: '1987-06-21', tags: ['văn phòng'] },
+  { name: 'Dương Mỹ Linh', weight: 2, birthday: '1998-10-11' },
+  { name: 'Lý Văn Phúc', weight: 2, birthday: '1991-03-29' },
+  { name: 'Mai Khánh Vy', weight: 2, birthday: '2000-12-01' },
+  { name: 'Trịnh Công Sơn', weight: 1, birthday: '1983-07-15' },
+  { name: 'Phan Bảo Ngọc', weight: 1, birthday: '1996-05-05' },
+  { name: 'Tạ Minh Châu', weight: 1, birthday: '1993-09-27' },
+  { name: 'Cao Thị Hạnh', weight: 1, birthday: '1989-01-19' },
 ];
 
 const TABLE_SECTIONS: Array<{ section: string; prefix: string; count: number; capacity: number }> =
@@ -251,6 +278,7 @@ async function main() {
   const orderModel = app.get<Model<OrderDoc>>(getModelToken(OrderDoc.name));
   const paymentModel = app.get<Model<PaymentDoc>>(getModelToken(PaymentDoc.name));
   const tableModel = app.get<Model<TableDoc>>(getModelToken(TableDoc.name));
+  const customerModel = app.get<Model<CustomerDoc>>(getModelToken(CustomerDoc.name));
   const tenantCtx = app.get(TenantContextService);
   const auth = app.get(AuthService);
   const users = app.get(UserRepository);
@@ -394,6 +422,45 @@ async function main() {
         };
       });
 
+    // ── 5b. Khách thành viên (đã xác thực SĐT) ──
+    const now0 = new Date();
+    const customers = await customerModel.insertMany(
+      DEMO_CUSTOMERS.map((c, i) => ({
+        id: newId(),
+        tenantId: tenant.id,
+        status: 'verified',
+        userId: null,
+        cookieAnchor: null,
+        // SĐT tổng hợp, đầu số 0389xxxxxx — chỉ để hiển thị (đã che) trên giao diện demo
+        phone: `+84389${String(100000 + i * 7919).slice(-6)}`,
+        name: c.name,
+        email: null,
+        birthday: new Date(`${c.birthday}T00:00:00Z`),
+        deviceFingerprints: [],
+        stats: {
+          totalSpent: { amount: 0, currency: 'VND' },
+          orderCount: 0,
+          firstOrderAt: null,
+          lastOrderAt: null,
+        },
+        tags: c.tags ?? [],
+        consents: {
+          marketing: { granted: false, grantedAt: null },
+          crossTenantShare: { granted: false, grantedAt: null },
+          privacyPolicyAcceptedAt: now0,
+        },
+        dataErasureRequestedAt: null,
+        schemaVersion: 1,
+        createdAt: now0,
+        updatedAt: now0,
+        deletedAt: null,
+      })),
+    );
+    const pickCustomer = () =>
+      rng.chance(0.35)
+        ? customers[DEMO_CUSTOMERS.indexOf(rng.weighted(DEMO_CUSTOMERS, (c) => c.weight))].id
+        : undefined;
+
     // ── 6. Lịch sử 7 ngày (không gồm hôm nay) ──
     let historyCount = 0;
     const today = new Date();
@@ -412,6 +479,8 @@ async function main() {
             venueId: venue.id,
             orderType: dineIn ? 'dine_in' : 'takeaway',
             tableId: dineIn ? rng.pick(allTables).id : undefined,
+            // Thanh toán đơn có khách → tự cộng điểm thẻ thành viên (LoyaltyService)
+            customerId: pickCustomer(),
             lines: randomLines(),
           });
           seq++;
@@ -492,6 +561,39 @@ async function main() {
       }
     }
 
+    // Thống kê khách (tổng chi, số đơn, lần đầu/cuối) tính từ đơn đã thu
+    const stats = await orderModel.aggregate<{
+      _id: string;
+      total: number;
+      count: number;
+      first: Date;
+      last: Date;
+    }>([
+      { $match: { tenantId: tenant.id, customerId: { $ne: null }, status: 'paid' } },
+      {
+        $group: {
+          _id: '$customerId',
+          total: { $sum: '$pricing.total.amount' },
+          count: { $sum: 1 },
+          first: { $min: '$createdAt' },
+          last: { $max: '$createdAt' },
+        },
+      },
+    ]);
+    for (const st of stats) {
+      await customerModel.updateOne(
+        { id: st._id },
+        {
+          $set: {
+            'stats.totalSpent': { amount: st.total, currency: 'VND' },
+            'stats.orderCount': st.count,
+            'stats.firstOrderAt': st.first,
+            'stats.lastOrderAt': st.last,
+          },
+        },
+      );
+    }
+
     // Đơn lịch sử đã thu → bàn bị chuyển "cần dọn"; dọn sạch trước khi dựng bàn đang phục vụ.
     await tableModel.updateMany(
       { tenantId: tenant.id },
@@ -523,6 +625,16 @@ async function main() {
         }
       }
     }
+    // Khách bàn T5 tự gọi món qua QR (đơn gửi thẳng xuống bếp như luồng QR thật)
+    const qrOrder = await orders.createDraft({
+      venueId: venue.id,
+      orderType: 'dine_in',
+      tableId: byName('T5').id,
+      lines: randomLines().slice(0, 2),
+    });
+    await orderModel.updateOne({ id: qrOrder.id }, { $set: { source: 'qr_menu' } });
+    await orders.sendToKitchen(qrOrder.id);
+
     await tables.changeStatus(byName('T2').id, { status: 'cleaning' });
     await tables.changeStatus(byName('L3').id, { status: 'reserved' });
 
@@ -531,7 +643,8 @@ async function main() {
     console.log(
       `🧾 Đơn lịch sử ${HISTORY_DAYS} ngày: ${historyCount}, hôm nay đã thu: ${todayPaid}`,
     );
-    console.log(`🔥 Đang phục vụ: ${live.map((l) => l.table).join(', ')}`);
+    console.log(`🔥 Đang phục vụ: ${live.map((l) => l.table).join(', ')}, T5 (khách gọi qua QR)`);
+    console.log(`👥 Khách thành viên: ${customers.length} (dữ liệu tổng hợp)`);
   });
 
   console.log('\n✅ Seed demo xong — "Cà phê Góc Phố"');

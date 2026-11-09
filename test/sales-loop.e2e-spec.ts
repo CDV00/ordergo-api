@@ -223,6 +223,34 @@ describe('Sales loop (e2e)', () => {
     expect(await tableStatus(tableA)).toBe('available');
   });
 
+  it('thu ngân gọi món + gửi bếp + thu tiền được (bán tại quầy)', async () => {
+    const phone = randomPhone();
+    const reg = await http()
+      .post('/v1/auth/register')
+      .send({ phone, password: 'matkhau123', displayName: 'Thu ngân' })
+      .expect(201);
+    await app.get(MembershipRepository).create({
+      tenantId: owner.tenantId,
+      userId: reg.body.data.user.id,
+      venueId: owner.venueId,
+      roleCode: 'cashier',
+    });
+    const c = as(await login(app, phone));
+    const created = await c
+      .post('/v1/orders')
+      .send({
+        venueId: owner.venueId,
+        orderType: 'takeaway',
+        lines: [{ menuItemId: cakeId, quantity: 1 }],
+      })
+      .expect(201);
+    await c.post(`/v1/orders/${created.body.data.id}/send-to-kitchen`).expect(201);
+    await c
+      .post(`/v1/orders/${created.body.data.id}/payments`)
+      .send({ method: 'cash', amount: 20_000 })
+      .expect(201);
+  });
+
   it('quản lý (venue_manager) tạo đơn và thu tiền được nhờ order.manage', async () => {
     const phone = randomPhone();
     const reg = await http()

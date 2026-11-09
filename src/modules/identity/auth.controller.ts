@@ -6,6 +6,7 @@ import { ChangePasswordDto, LoginDto, RefreshDto } from './dto/login.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
+import { RATE_LIMITS, RateLimit } from '../../common/throttle/throttle';
 
 @ApiTags('Auth')
 @Controller()
@@ -13,18 +14,21 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Public()
+  @RateLimit(RATE_LIMITS.register)
   @Post('auth/register')
   register(@Body() dto: RegisterDto) {
     return this.auth.register(dto);
   }
 
   @Public()
+  @RateLimit(RATE_LIMITS.login)
   @Post('auth/login')
   login(@Body() dto: LoginDto) {
     return this.auth.login(dto);
   }
 
   @Public()
+  @RateLimit(RATE_LIMITS.refresh)
   @Post('auth/refresh')
   refresh(@Body() dto: RefreshDto) {
     return this.auth.refresh(dto.refreshToken);
@@ -39,6 +43,7 @@ export class AuthController {
 
   /** Đổi mật khẩu (nhân viên được mời đăng nhập bằng mật khẩu tạm nên cần đổi ngay). */
   @Post('auth/change-password')
+  @RateLimit(RATE_LIMITS.changePassword)
   @ApiBearerAuth()
   async changePassword(@CurrentUser() user: CurrentUserPayload, @Body() dto: ChangePasswordDto) {
     await this.auth.changePassword(user.userId, dto.currentPassword, dto.newPassword);
