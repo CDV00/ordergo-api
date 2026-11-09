@@ -56,6 +56,27 @@ export class MembershipRepository {
     return this.model.find({ tenantId, deletedAt: null }).lean<MembershipDoc[]>().exec();
   }
 
+  /**
+   * Đồng bộ permissions của membership theo ROLE_PERMISSIONS hiện tại (trừ role `custom`).
+   * Permissions được chép vào từng membership lúc tạo, nên khi bảng quyền đổi phải chạy lại.
+   */
+  async syncRolePermissions(): Promise<number> {
+    let changed = 0;
+    for (const [role, permissions] of Object.entries(ROLE_PERMISSIONS) as Array<
+      [RoleCode, string[]]
+    >) {
+      if (role === 'custom') continue;
+      const res = await this.model
+        .updateMany(
+          { roleCode: role, deletedAt: null, permissions: { $ne: permissions } },
+          { $set: { permissions, updatedAt: new Date() } },
+        )
+        .exec();
+      changed += res.modifiedCount;
+    }
+    return changed;
+  }
+
   async findInTenant(tenantId: string, id: string): Promise<MembershipDoc | null> {
     return this.model.findOne({ id, tenantId, deletedAt: null }).lean<MembershipDoc>().exec();
   }

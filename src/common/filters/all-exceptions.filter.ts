@@ -8,12 +8,20 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import { captureServerError } from '../observability/sentry';
 
 interface ErrorBody {
   code: string;
   message: string;
   details?: unknown;
   requestId: string;
+}
+
+/** Lỗi http-errors (body-parser...) có `status` 4xx và `expose: true`. */
+function isClientHttpError(e: unknown): e is Error & { status: number } {
+  if (!(e instanceof Error)) return false;
+  const { status, expose } = e as Error & { status?: unknown; expose?: unknown };
+  return typeof status === 'number' && status >= 400 && status < 500 && expose === true;
 }
 
 @Catch()
@@ -54,6 +62,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
           body.message = 'Dữ liệu không hợp lệ.';
         }
       }
+    } else if (isClientHttpError(exception)) {
+      // Lỗi 4xx từ middleware express (body-parser: body quá lớn, JSON hỏng...) — không phải 500.
+      status = exception.status;
+      body.code = this.codeFromStatus(status);
+      body.message = status === 413 ? 'Dữ liệu gửi lên quá lớn.' : 'Yêu cầu không hợp lệ.';
     } else if (exception instanceof Error) {
       this.logger.error(exception.message, exception.stack, requestId);
       body.message = process.env.NODE_ENV === 'production' ? body.message : exception.message;
@@ -65,6 +78,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         exception instanceof Error ? exception.stack : String(exception),
         requestId,
       );
+      // Route pattern (vd /v1/orders/:id) thay vì URL thật — không có query/giá trị.
+      const route = (req.route as { path?: string } | undefined)?.path ?? req.path;
+      captureServerError(exception, { requestId, method: req.method, route, status });
     }
 
     res.setHeader('X-Request-Id', requestId);
@@ -83,10 +99,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
         return 'NOT_FOUND';
       case 409:
         return 'CONFLICT';
+      case 413:
+        return 'PAYLOAD_TOO_LARGE';
+      case 415:
+        return 'UNSUPPORTED_MEDIA_TYPE';
       case 422:
         return 'UNPROCESSABLE';
       case 429:
-        return 'RATE_LIMITED';
+        return 'TOO_MANY_REQUESTS';
       default:
         return 'ERROR';
     }

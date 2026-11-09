@@ -29,6 +29,7 @@ import { ShiftModule } from './modules/shift/shift.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { JwtModule } from '@nestjs/jwt';
 import { HealthController } from './common/health/health.controller';
+import { AppThrottlerGuard, AppThrottlerModule } from './common/throttle/throttle';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { HealthController } from './common/health/health.controller';
     }),
     JwtModule.register({}), // global instance for middleware (uses dynamic secret)
     ScheduleModule.forRoot(),
+    AppThrottlerModule,
     TenantContextModule,
     DatabaseModule,
     AuditModule,
@@ -73,7 +75,9 @@ import { HealthController } from './common/health/health.controller';
     },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+    // Thứ tự quan trọng: JwtAuthGuard gắn req.user → throttler đếm theo user (hoặc IP nếu @Public).
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })

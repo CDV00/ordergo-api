@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module, OnModuleInit } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { TenantDoc, TenantSchema } from './schemas/tenant.schema';
 import { VenueDoc, VenueSchema } from './schemas/venue.schema';
@@ -34,4 +34,17 @@ import { TenantAccessService } from './tenant-access.service';
     TenantAccessService,
   ],
 })
-export class TenantModule {}
+export class TenantModule implements OnModuleInit {
+  constructor(private readonly memberships: MembershipRepository) {}
+
+  async onModuleInit(): Promise<void> {
+    try {
+      const changed = await this.memberships.syncRolePermissions();
+      if (changed > 0) {
+        new Logger('TenantModule').log(`Đồng bộ quyền theo vai trò: ${changed} membership`);
+      }
+    } catch (err) {
+      new Logger('TenantModule').error(`Đồng bộ quyền lỗi: ${(err as Error).message}`);
+    }
+  }
+}

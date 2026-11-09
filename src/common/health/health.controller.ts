@@ -2,9 +2,11 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection, ConnectionStates } from 'mongoose';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../decorators/public.decorator';
 
 @ApiTags('Health')
+@SkipThrottle() // healthcheck của Docker/Caddy/uptime monitor không bị rate limit
 @Controller()
 export class HealthController {
   constructor(@InjectConnection() private readonly mongo: Connection) {}

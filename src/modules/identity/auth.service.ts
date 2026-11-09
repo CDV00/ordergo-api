@@ -11,6 +11,7 @@ import { MembershipRepository } from '../tenant/repositories/membership.reposito
 import { TenantRepository } from '../tenant/repositories/tenant.repository';
 import { UserDoc } from './schemas/user.schema';
 import { newId } from '../../shared/utils/uuid';
+import { LoginLockoutService } from './login-lockout.service';
 
 export interface IssuedTokens {
   accessToken: string;
@@ -59,6 +60,7 @@ export class AuthService {
     private readonly tenants: TenantRepository,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly lockout: LoginLockoutService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResult> {
@@ -82,20 +84,22 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<AuthResult> {
     const phone = this.normalizePhone(dto.phone);
+    // Đang bị khoá do sai nhiều lần → từ chối kể cả khi mật khẩu đúng.
+    await this.lockout.assertNotLocked(phone);
     const user = await this.users.findByPhone(phone);
-    if (!user || user.status !== 'active') {
+    const ok =
+      !!user &&
+      user.status === 'active' &&
+      (await argon2.verify(user.passwordHash, dto.password).catch(() => false));
+    if (!user || !ok) {
+      // Đếm cả SĐT không tồn tại → phản hồi giống nhau, không lộ SĐT nào đã đăng ký.
+      await this.lockout.recordFailure(phone);
       throw new UnauthorizedException({
         code: 'INVALID_CREDENTIALS',
         message: 'Số điện thoại hoặc mật khẩu không đúng.',
       });
     }
-    const ok = await argon2.verify(user.passwordHash, dto.password).catch(() => false);
-    if (!ok) {
-      throw new UnauthorizedException({
-        code: 'INVALID_CREDENTIALS',
-        message: 'Số điện thoại hoặc mật khẩu không đúng.',
-      });
-    }
+    await this.lockout.reset(phone);
     await this.users.updateLastLogin(user.id);
     return this.buildAuthResult(user);
   }

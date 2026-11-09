@@ -10,7 +10,8 @@ export class TableService {
   async list(venueId?: string): Promise<TableDoc[]> {
     const filter: Record<string, unknown> = {};
     if (venueId) filter.venueId = venueId;
-    return this.tables.find(filter, { sort: { section: 1, name: 1 } });
+    // Theo thứ tự chủ quán tạo (khu + bàn) — sắp theo tên khu sẽ đưa "Lầu 1" lên trước "Tầng trệt"
+    return this.tables.find(filter, { sort: { createdAt: 1, name: 1 } });
   }
 
   async create(dto: CreateTableDto): Promise<TableDoc> {

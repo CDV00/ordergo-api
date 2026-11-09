@@ -15,6 +15,9 @@ export async function bootstrapApp(dbName: string): Promise<INestApplication<App
     process.env.E2E_MONGODB_URI ?? 'mongodb://localhost:27017/?directConnection=true';
   process.env.MONGODB_DB = dbName;
   process.env.NODE_ENV = 'test';
+  // Các suite đăng ký/đăng nhập rất nhiều từ 127.0.0.1 → tắt rate limit, trừ file tự bật
+  // (throttle.e2e-spec.ts đặt THROTTLE_DISABLED=0 trước khi gọi).
+  process.env.THROTTLE_DISABLED ??= '1';
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { AppModule } = require('../src/app.module') as typeof import('../src/app.module');
 
@@ -23,7 +26,8 @@ export async function bootstrapApp(dbName: string): Promise<INestApplication<App
   app.setGlobalPrefix('v1');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const setup = require('../src/app.setup') as typeof import('../src/app.setup');
-  const { setupRealtime, setupStaticUploads } = setup;
+  const { setupHttpSecurity, setupRealtime, setupStaticUploads } = setup;
+  setupHttpSecurity(app);
   setupStaticUploads(app);
   setupRealtime(app);
   await app.init();
