@@ -52,6 +52,10 @@ export class PaymentDoc {
   @Prop({ type: MoneyShape, required: true, _id: false })
   amount!: { amount: number; currency: string };
 
+  /** Tiền mặt khách đưa (để in bill + tính tiền thối). null với phương thức khác. */
+  @Prop({ type: Number, default: null })
+  tenderedAmount!: number | null;
+
   @Prop({ type: Date, required: true, index: true })
   receivedAt!: Date;
 

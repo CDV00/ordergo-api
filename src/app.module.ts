@@ -22,6 +22,7 @@ import { CustomerModule } from './modules/customer/customer.module';
 import { OtpModule } from './modules/otp/otp.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { PublicApiModule } from './modules/public-api/public-api.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { JwtModule } from '@nestjs/jwt';
 import { HealthController } from './common/health/health.controller';
 
@@ -48,6 +49,7 @@ import { HealthController } from './common/health/health.controller';
     OtpModule,
     LoyaltyModule,
     PublicApiModule,
+    StorageModule,
   ],
   controllers: [HealthController],
   providers: [

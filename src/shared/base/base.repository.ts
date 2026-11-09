@@ -32,13 +32,11 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
   }
 
   async findById(id: string, opts: FindOptions = {}): Promise<TDoc | null> {
-    return (
-      this.model
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .findOne(this.mergeFilter({ id }, opts.includeDeleted) as any)
-        .lean<TDoc>()
-        .exec()
-    );
+    return this.model
+
+      .findOne(this.mergeFilter({ id }, opts.includeDeleted) as any)
+      .lean<TDoc>()
+      .exec();
   }
 
   async findByIdOrFail(id: string, opts: FindOptions = {}): Promise<TDoc> {
@@ -54,17 +52,14 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
   }
 
   async findOne(filter: LooseFilter, opts: FindOptions = {}): Promise<TDoc | null> {
-    return (
-      this.model
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .findOne(this.mergeFilter(filter, opts.includeDeleted) as any)
-        .lean<TDoc>()
-        .exec()
-    );
+    return this.model
+
+      .findOne(this.mergeFilter(filter, opts.includeDeleted) as any)
+      .lean<TDoc>()
+      .exec();
   }
 
   async find(filter: LooseFilter = {}, opts: FindOptions = {}): Promise<TDoc[]> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let q = this.model.find(this.mergeFilter(filter, opts.includeDeleted) as any);
     if (opts.sort) q = q.sort(opts.sort);
     if (typeof opts.skip === 'number') q = q.skip(opts.skip);
@@ -73,12 +68,7 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
   }
 
   async count(filter: LooseFilter = {}, opts: FindOptions = {}): Promise<number> {
-    return (
-      this.model
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .countDocuments(this.mergeFilter(filter, opts.includeDeleted) as any)
-        .exec()
-    );
+    return this.model.countDocuments(this.mergeFilter(filter, opts.includeDeleted) as any).exec();
   }
 
   async create(data: Partial<TDoc>): Promise<TDoc> {
@@ -96,7 +86,7 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
       deletedAt: null,
       ...data,
     } as unknown as TDoc;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const created = await this.model.create(doc as any);
     return (created as { toObject(): TDoc }).toObject();
   }
@@ -115,7 +105,7 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
       deletedAt: null,
       ...data,
     } as unknown as TDoc;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const created = await this.model.create(doc as any);
     return (created as { toObject(): TDoc }).toObject();
   }
@@ -130,9 +120,8 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
     const finalPatch = { ...patch, $set: setClause };
     const updated = await this.model
       .findOneAndUpdate(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         this.mergeFilter({ id }) as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         finalPatch as any,
         { returnDocument: 'after', lean: true },
       )
@@ -151,9 +140,8 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
     const userId = this.tenantCtx.current()?.userId ?? null;
     const result = await this.model
       .updateOne(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         this.mergeFilter({ id }) as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         { $set: { deletedAt: new Date(), updatedAt: new Date(), updatedBy: userId } } as any,
       )
       .exec();

@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 import type { AuthenticatedRequest } from '../decorators/current-user.decorator';
+import { hasPermission } from '../auth/permissions';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -17,10 +18,7 @@ export class PermissionsGuard implements CanActivate {
     const req = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
     const perms = req.user?.permissions ?? [];
 
-    // owner '*' permission bypass
-    if (perms.includes('*')) return true;
-
-    const missing = required.filter((p) => !perms.includes(p));
+    const missing = required.filter((p) => !hasPermission(perms, p));
     if (missing.length > 0) {
       throw new ForbiddenException({
         code: 'FORBIDDEN',

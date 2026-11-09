@@ -73,6 +73,9 @@ export class VenueDoc {
   })
   contact!: { phone?: string; email?: string };
 
+  @Prop({ type: String, default: null })
+  logoUrl!: string | null;
+
   @Prop({ type: String, default: 'Asia/Ho_Chi_Minh' })
   timezone!: string;
 
@@ -87,6 +90,7 @@ export class VenueDoc {
       serviceChargeRate: { type: Number, default: 0 },
       vatRate: { type: Number, default: 0.08 },
       autoEinvoice: { type: Boolean, default: false },
+      receiptFooter: { type: String, default: null },
       einvoiceProvider: { type: String, default: null },
       bankAccount: {
         type: {
@@ -106,6 +110,7 @@ export class VenueDoc {
     serviceChargeRate: number;
     vatRate: number;
     autoEinvoice: boolean;
+    receiptFooter?: string | null;
     einvoiceProvider: string | null;
     bankAccount: {
       bankBin: string | null;

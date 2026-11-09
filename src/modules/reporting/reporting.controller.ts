@@ -12,6 +12,13 @@ export class ReportingController {
   @Get('today')
   @RequirePermissions('report.view')
   today(@Query('venueId') venueId?: string) {
-    return this.service.todaySummary(venueId);
+    return this.service.dailySummary(venueId);
+  }
+
+  /** `date` = YYYY-MM-DD theo giờ của cơ sở. */
+  @Get('daily')
+  @RequirePermissions('report.view')
+  daily(@Query('venueId') venueId?: string, @Query('date') date?: string) {
+    return this.service.dailySummary(venueId, date);
   }
 }

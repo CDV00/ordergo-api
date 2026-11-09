@@ -15,6 +15,9 @@ export const envValidationSchema = Joi.object({
   JWT_REFRESH_TTL: Joi.string().default('30d'),
 
   CORS_ORIGINS: Joi.string().default('http://localhost:3000'),
+
+  /** Thư mục lưu ảnh upload (tương đối cwd hoặc tuyệt đối) */
+  UPLOAD_DIR: Joi.string().default('uploads'),
 });
 
 export interface AppEnv {
@@ -27,4 +30,5 @@ export interface AppEnv {
   JWT_ACCESS_TTL: string;
   JWT_REFRESH_TTL: string;
   CORS_ORIGINS: string;
+  UPLOAD_DIR: string;
 }

@@ -1,4 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
+import { VN_BANK_BINS } from '../../shared/utils/vietqr';
 import { TenantRepository } from './repositories/tenant.repository';
 import { VenueRepository } from './repositories/venue.repository';
 import { MembershipRepository } from './repositories/membership.repository';
@@ -116,6 +117,21 @@ export class TenantService {
     if (dto.addressLine1 !== undefined) set['address.line1'] = dto.addressLine1;
     if (dto.city !== undefined) set['address.city'] = dto.city;
     if (dto.phone !== undefined) set['contact.phone'] = dto.phone;
+    if (dto.logoUrl !== undefined) set.logoUrl = dto.logoUrl || null;
+    if (dto.serviceChargeRate !== undefined)
+      set['settings.serviceChargeRate'] = dto.serviceChargeRate;
+    if (dto.vatRate !== undefined) set['settings.vatRate'] = dto.vatRate;
+    if (dto.receiptFooter !== undefined) set['settings.receiptFooter'] = dto.receiptFooter || null;
+    if (dto.bankAccount !== undefined) {
+      set['settings.bankAccount'] = dto.bankAccount
+        ? {
+            bankBin: dto.bankAccount.bankBin,
+            bankName: dto.bankAccount.bankName ?? VN_BANK_BINS[dto.bankAccount.bankBin] ?? null,
+            accountNumber: dto.bankAccount.accountNumber,
+            accountName: dto.bankAccount.accountName,
+          }
+        : null;
+    }
     return this.venues.updateById(id, patch);
   }
 
