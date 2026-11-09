@@ -4,7 +4,7 @@ import { OrderEventRepository } from './repositories/order-event.repository';
 import { MenuItemRepository } from '../catalog/repositories/menu-item.repository';
 import { TableRepository } from '../table/repositories/table.repository';
 import { TenantContextService } from '../../common/context/tenant-context.service';
-import { AddOrderLineDto, CancelOrderDto, CreateOrderDto } from './dto/order.dto';
+import { CancelOrderDto, CreateOrderDto } from './dto/order.dto';
 import { newId } from '../../shared/utils/uuid';
 import { OrderDoc } from './schemas/order.schema';
 import { addMoney, multMoney } from '../../shared/utils/money';

@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Giá trị giả chỉ dùng cho CI — app bắt buộc secret ≥ 32 ký tự.
+      JWT_ACCESS_SECRET: ci-only-access-secret-not-used-anywhere-else
+      JWT_REFRESH_SECRET: ci-only-refresh-secret-not-used-anywhere-else
+      E2E_MONGODB_URI: mongodb://localhost:27017/?directConnection=true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Yarn theo đúng version ở "packageManager" trong package.json
+      - run: corepack enable
+
+      - run: yarn install --immutable
+
+      - name: Lint
+        run: yarn lint:check
+
+      - name: Format
+        run: yarn format:check
+
+      - name: Unit test
+        run: yarn test
+
+      - name: Build
+        run: yarn build
+
+      - name: E2E test
+        run: yarn test:e2e

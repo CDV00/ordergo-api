@@ -7,12 +7,15 @@ RUN apk add --no-cache tzdata libc6-compat \
  && cp /usr/share/zoneinfo/$TZ /etc/localtime \
  && echo $TZ > /etc/timezone
 WORKDIR /opt
+# Yarn 4 theo "packageManager" trong package.json (image chỉ có sẵn Yarn 1)
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
 
 # ─── Install all deps ─────────────────────────────────────
 FROM base AS deps
-COPY package.json yarn.lock ./
-RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
-    yarn install --frozen-lockfile
+COPY package.json yarn.lock .yarnrc.yml ./
+RUN --mount=type=cache,target=/root/.yarn/berry/cache \
+    yarn install --immutable
 
 # ─── Build ────────────────────────────────────────────────
 FROM base AS build
@@ -22,10 +25,9 @@ RUN yarn build
 
 # ─── Prod-only deps ───────────────────────────────────────
 FROM base AS prod-deps
-COPY package.json yarn.lock ./
-RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
-    yarn install --frozen-lockfile --production && \
-    yarn cache clean
+COPY package.json yarn.lock .yarnrc.yml ./
+RUN --mount=type=cache,target=/root/.yarn/berry/cache \
+    yarn workspaces focus --production
 
 # ─── Runtime ──────────────────────────────────────────────
 FROM node:20-alpine AS runtime

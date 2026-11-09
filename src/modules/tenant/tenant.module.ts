@@ -8,6 +8,7 @@ import { VenueRepository } from './repositories/venue.repository';
 import { MembershipRepository } from './repositories/membership.repository';
 import { TenantService } from './tenant.service';
 import { TenantController } from './tenant.controller';
+import { TenantAccessService } from './tenant-access.service';
 
 @Module({
   imports: [
@@ -17,8 +18,20 @@ import { TenantController } from './tenant.controller';
       { name: MembershipDoc.name, schema: MembershipSchema },
     ]),
   ],
-  providers: [TenantRepository, VenueRepository, MembershipRepository, TenantService],
+  providers: [
+    TenantRepository,
+    VenueRepository,
+    MembershipRepository,
+    TenantService,
+    TenantAccessService,
+  ],
   controllers: [TenantController],
-  exports: [TenantService, MembershipRepository, VenueRepository, TenantRepository],
+  exports: [
+    TenantService,
+    MembershipRepository,
+    VenueRepository,
+    TenantRepository,
+    TenantAccessService,
+  ],
 })
 export class TenantModule {}

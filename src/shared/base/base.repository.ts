@@ -134,7 +134,7 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
         this.mergeFilter({ id }) as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         finalPatch as any,
-        { new: true, lean: true },
+        { returnDocument: 'after', lean: true },
       )
       .exec();
     if (!updated) {
