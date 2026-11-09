@@ -111,6 +111,15 @@ export class CustomerDoc {
 export type CustomerDocument = HydratedDocument<CustomerDoc>;
 export const CustomerSchema = SchemaFactory.createForClass(CustomerDoc);
 
-CustomerSchema.index({ tenantId: 1, phone: 1 }, { unique: true, sparse: true });
-CustomerSchema.index({ tenantId: 1, cookieAnchor: 1 }, { unique: true, sparse: true });
-CustomerSchema.index({ tenantId: 1, userId: 1 }, { unique: true, sparse: true });
+// Unique chỉ khi field có giá trị. `sparse` KHÔNG dùng được cho index ghép (tenantId luôn có
+// mặt nên doc phone=null vẫn vào index) → khách vô danh thứ 2 của 1 quán bị lỗi duplicate key.
+const whenString = (field: string) => ({
+  unique: true,
+  partialFilterExpression: { [field]: { $type: 'string' } },
+});
+CustomerSchema.index({ tenantId: 1, phone: 1 }, { ...whenString('phone'), name: 'uniq_phone' });
+CustomerSchema.index(
+  { tenantId: 1, cookieAnchor: 1 },
+  { ...whenString('cookieAnchor'), name: 'uniq_cookie_anchor' },
+);
+CustomerSchema.index({ tenantId: 1, userId: 1 }, { ...whenString('userId'), name: 'uniq_user' });
