@@ -1,4 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { MenuCategoryRepository } from './repositories/menu-category.repository';
 import { MenuItemRepository } from './repositories/menu-item.repository';
 import { CreateMenuCategoryDto, UpdateMenuCategoryDto } from './dto/menu-category.dto';
@@ -6,19 +11,44 @@ import { CreateMenuItemDto, ToggleAvailabilityDto, UpdateMenuItemDto } from './d
 import { MenuCategoryDoc } from './schemas/menu-category.schema';
 import { MenuItemDoc } from './schemas/menu-item.schema';
 import { newId } from '../../shared/utils/uuid';
+import { CopyMenuDto } from './dto/copy-menu.dto';
+import { buildMenuCopy } from './menu-copy';
+import { VenueRepository } from '../tenant/repositories/venue.repository';
+import { canAccessVenue, TenantAccessService } from '../tenant/tenant-access.service';
+import { TenantContextService } from '../../common/context/tenant-context.service';
+import { AuditService } from '../audit/audit.module';
+
+export interface CopyMenuResult {
+  categories: number;
+  items: number;
+  /** Số món cũ của cơ sở đích đã bị xoá mềm (khi `replace`). */
+  replacedItems: number;
+}
+
+/**
+ * Lọc theo cơ sở: `undefined` = mọi cơ sở; `null`/'' = chỉ menu dùng chung toàn chuỗi;
+ * id = menu của cơ sở đó + menu dùng chung (venueId=null) vẫn hiện ở mọi cơ sở.
+ */
+export function venueFilter(venueId: string | null | undefined): Record<string, unknown> {
+  if (venueId === undefined) return {};
+  if (!venueId) return { venueId: null };
+  return { venueId: { $in: [venueId, null] } };
+}
 
 @Injectable()
 export class CatalogService {
   constructor(
     private readonly categories: MenuCategoryRepository,
     private readonly items: MenuItemRepository,
+    private readonly venues: VenueRepository,
+    private readonly access: TenantAccessService,
+    private readonly tenantCtx: TenantContextService,
+    private readonly audit: AuditService,
   ) {}
 
   // ─── Categories ───
   async listCategories(venueId?: string | null): Promise<MenuCategoryDoc[]> {
-    const filter: Record<string, unknown> = {};
-    if (venueId !== undefined) filter.venueId = venueId;
-    return this.categories.find(filter, { sort: { displayOrder: 1, createdAt: 1 } });
+    return this.categories.find(venueFilter(venueId), { sort: { displayOrder: 1, createdAt: 1 } });
   }
 
   async createCategory(dto: CreateMenuCategoryDto): Promise<MenuCategoryDoc> {
@@ -51,8 +81,7 @@ export class CatalogService {
     venueId?: string | null;
     categoryId?: string;
   }): Promise<MenuItemDoc[]> {
-    const f: Record<string, unknown> = {};
-    if (filter.venueId !== undefined) f.venueId = filter.venueId;
+    const f: Record<string, unknown> = venueFilter(filter.venueId);
     if (filter.categoryId) f.categoryId = filter.categoryId;
     return this.items.find(f, { sort: { displayOrder: 1, createdAt: 1 } });
   }
@@ -161,5 +190,76 @@ export class CatalogService {
 
   async deleteItem(id: string): Promise<void> {
     await this.items.softDelete(id);
+  }
+
+  // ─── Sao chép menu giữa các cơ sở ───
+
+  /**
+   * Chép nhóm + món riêng của cơ sở `fromVenueId` sang cơ sở `targetVenueId` (id mới, giữ ảnh).
+   * Menu dùng chung (venueId=null) không chép — vốn đã hiện ở mọi cơ sở.
+   * Cơ sở đích đã có món → 409 MENU_NOT_EMPTY, trừ khi `replace` (xoá mềm menu cũ trước).
+   */
+  async copyMenu(targetVenueId: string, dto: CopyMenuDto): Promise<CopyMenuResult> {
+    if (dto.fromVenueId === targetVenueId) {
+      throw new BadRequestException({
+        code: 'SAME_VENUE',
+        message: 'Cơ sở nguồn và cơ sở đích phải khác nhau.',
+      });
+    }
+    // Cả 2 cơ sở phải thuộc tenant hiện tại (repository tự lọc tenant → 404 nếu không).
+    await this.venues.findByIdOrFail(targetVenueId);
+    await this.venues.findByIdOrFail(dto.fromVenueId);
+
+    const scope = await this.access.venueScope(this.tenantCtx.userId(), this.tenantCtx.tenantId());
+    for (const id of [targetVenueId, dto.fromVenueId]) {
+      if (!canAccessVenue(scope, id)) {
+        throw new ForbiddenException({
+          code: 'VENUE_ACCESS_DENIED',
+          message: 'Bạn không có quyền truy cập cơ sở này.',
+          details: { venueId: id },
+        });
+      }
+    }
+
+    // Nhóm rỗng cũng tính là "đã có menu" để không sinh nhóm trùng tên.
+    const [existing, existingCategories] = await Promise.all([
+      this.items.count({ venueId: targetVenueId }),
+      this.categories.count({ venueId: targetVenueId }),
+    ]);
+    if ((existing > 0 || existingCategories > 0) && !dto.replace) {
+      throw new ConflictException({
+        code: 'MENU_NOT_EMPTY',
+        message: 'Cơ sở này đã có menu. Chọn "Thay thế" để xoá menu cũ rồi sao chép.',
+        details: { items: existing, categories: existingCategories },
+      });
+    }
+
+    const sort = { sort: { displayOrder: 1 as const, createdAt: 1 as const } };
+    const [categories, items] = await Promise.all([
+      this.categories.find({ venueId: dto.fromVenueId }, sort),
+      this.items.find({ venueId: dto.fromVenueId }, sort),
+    ]);
+    const plan = buildMenuCopy({ categories, items }, targetVenueId, newId);
+
+    let replacedItems = 0;
+    if (dto.replace) {
+      replacedItems = await this.items.softDeleteMany({ venueId: targetVenueId });
+      await this.categories.softDeleteMany({ venueId: targetVenueId });
+    }
+    await this.categories.createMany(plan.categories);
+    await this.items.createMany(plan.items);
+
+    const result: CopyMenuResult = {
+      categories: plan.categories.length,
+      items: plan.items.length,
+      replacedItems,
+    };
+    await this.audit.record({
+      action: 'menu.copy',
+      entityType: 'venue',
+      entityId: targetVenueId,
+      metadata: { ...result },
+    });
+    return result;
   }
 }

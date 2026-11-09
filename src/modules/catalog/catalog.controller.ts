@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CatalogService } from './catalog.service';
 import { CreateMenuCategoryDto, UpdateMenuCategoryDto } from './dto/menu-category.dto';
 import { CreateMenuItemDto, ToggleAvailabilityDto, UpdateMenuItemDto } from './dto/menu-item.dto';
+import { CopyMenuDto } from './dto/copy-menu.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 
 @ApiTags('Catalog (F&B)')
@@ -73,5 +74,13 @@ export class CatalogController {
   @RequirePermissions('menu.manage')
   async deleteItem(@Param('id') id: string) {
     await this.service.deleteItem(id);
+  }
+
+  // ── Sao chép menu giữa các cơ sở ──
+  /** Chép menu của `fromVenueId` sang cơ sở `:id` (409 MENU_NOT_EMPTY nếu đích đã có món, trừ `replace`). */
+  @Post('venues/:id/copy-menu')
+  @RequirePermissions('menu.manage')
+  copyMenu(@Param('id') id: string, @Body() dto: CopyMenuDto) {
+    return this.service.copyMenu(id, dto);
   }
 }

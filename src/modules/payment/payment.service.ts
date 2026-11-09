@@ -12,6 +12,7 @@ import { buildVietQrPayload } from '../../shared/utils/vietqr';
 import { newId } from '../../shared/utils/uuid';
 import { PaymentDoc } from './schemas/payment.schema';
 import { ShiftRepository } from '../shift/repositories/shift.repository';
+import { CustomerRepository } from '../customer/repositories/customer.repository';
 
 @Injectable()
 export class PaymentService {
@@ -24,6 +25,7 @@ export class PaymentService {
     private readonly orderService: OrderService,
     private readonly venues: VenueRepository,
     private readonly shifts: ShiftRepository,
+    private readonly customers: CustomerRepository,
   ) {}
 
   /** Danh sách payment theo khoảng ngày (mặc định hôm nay), mới nhất trước. */
@@ -171,6 +173,11 @@ export class PaymentService {
           total: totalDue,
         },
       });
+
+      // Thống kê khách cho đơn POS (đơn QR đã cộng lúc khách đặt — xem public-api)
+      if (order.customerId && order.source !== 'qr_menu') {
+        await this.customers.recordOrderInTenant(order.tenantId, order.customerId, totalDue);
+      }
 
       // Loyalty earn — chỉ verified customer (anonymous bị skip trong service)
       if (order.customerId) {

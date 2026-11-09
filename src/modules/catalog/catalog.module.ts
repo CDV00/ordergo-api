@@ -6,6 +6,7 @@ import { MenuCategoryRepository } from './repositories/menu-category.repository'
 import { MenuItemRepository } from './repositories/menu-item.repository';
 import { CatalogService } from './catalog.service';
 import { CatalogController } from './catalog.controller';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
   imports: [
@@ -13,6 +14,8 @@ import { CatalogController } from './catalog.controller';
       { name: MenuCategoryDoc.name, schema: MenuCategorySchema },
       { name: MenuItemDoc.name, schema: MenuItemSchema },
     ]),
+    // VenueRepository + TenantAccessService cho sao chép menu. AuditService đến từ AuditModule (@Global).
+    TenantModule,
   ],
   providers: [MenuCategoryRepository, MenuItemRepository, CatalogService],
   controllers: [CatalogController],

@@ -7,6 +7,7 @@ import { UserDoc, UserSchema } from '../identity/schemas/user.schema';
 import { ReportingService } from './reporting.service';
 import { SalesReportService } from './sales-report.service';
 import { ReportingController } from './reporting.controller';
+import { ReportScopeService } from './report-scope';
 
 // AuditService đến từ AuditModule (@Global) — không cần import.
 @Module({
@@ -19,7 +20,7 @@ import { ReportingController } from './reporting.controller';
     ]),
     TenantModule,
   ],
-  providers: [ReportingService, SalesReportService],
+  providers: [ReportingService, SalesReportService, ReportScopeService],
   controllers: [ReportingController],
 })
 export class ReportingModule {}

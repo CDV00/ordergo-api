@@ -72,9 +72,9 @@ export class LoyaltyService {
     orderId: string;
     orderTotal: number;
   }): Promise<LoyaltyCardDoc | null> {
-    // Customer phải verified
+    // Customer phải verified và thuộc đúng tenant của đơn (customerId do client gửi, không tin)
     const customer = await this.customers.findById(params.customerId);
-    if (!customer || customer.status === 'anonymous') {
+    if (!customer || customer.tenantId !== params.tenantId || customer.status === 'anonymous') {
       this.logger.debug(`Skip loyalty for anonymous customer ${params.customerId}`);
       return null;
     }

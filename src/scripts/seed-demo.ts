@@ -1,5 +1,6 @@
 /**
- * Seed dữ liệu demo: 1 quán cà phê đầy đủ menu, bàn, nhân viên và 7 ngày lịch sử đơn hàng.
+ * Seed dữ liệu demo: chuỗi cà phê 2 chi nhánh — Quận 3 (đầy đủ menu, bàn, nhân viên, 7 ngày lịch sử)
+ * và Quận 1 (menu chép từ Quận 3, bàn A1–A6, 3 ngày lịch sử, ít đơn hơn).
  *
  *   yarn seed:demo                 # build + reset + seed (chạy lại bao nhiêu lần cũng được)
  *   node dist/scripts/seed-demo.js # trong Docker image production (đã build sẵn)
@@ -39,6 +40,9 @@ import { newId } from '../shared/utils/uuid';
 
 const PASSWORD = process.env.DEMO_PASSWORD ?? 'ordergo123';
 const HISTORY_DAYS = 7;
+/** Chi nhánh 2: ít ngày lịch sử, lượng khách bằng ~nửa Quận 3. */
+const BRANCH_HISTORY_DAYS = 3;
+const BRANCH_TRAFFIC = 0.5;
 
 const STAFF: Array<{ phone: string; name: string; role: RoleCode | 'owner' }> = [
   { phone: '0900000001', name: 'Nguyễn Minh Anh', role: 'owner' },
@@ -638,6 +642,9 @@ async function main() {
     await tables.changeStatus(byName('T2').id, { status: 'cleaning' });
     await tables.changeStatus(byName('L3').id, { status: 'reserved' });
 
+    // ── 8. Chi nhánh 2 "Góc Phố - Quận 1" (sau cùng + RNG riêng → dữ liệu Quận 3 không đổi) ──
+    const branch = await seedBranch();
+
     console.log(`📦 Menu: ${MENU.length} nhóm, ${menuItems.length} món`);
     console.log(`🪑 Bàn: ${allTables.length}`);
     console.log(
@@ -645,9 +652,151 @@ async function main() {
     );
     console.log(`🔥 Đang phục vụ: ${live.map((l) => l.table).join(', ')}, T5 (khách gọi qua QR)`);
     console.log(`👥 Khách thành viên: ${customers.length} (dữ liệu tổng hợp)`);
+    console.log(
+      `🏬 Chi nhánh ${branch.name}: ${branch.items} món (chép từ Quận 3), ${branch.tables} bàn, ` +
+        `${branch.history} đơn ${BRANCH_HISTORY_DAYS} ngày, hôm nay đã thu: ${branch.today}`,
+    );
+
+    async function seedBranch() {
+      const brng = createRng(20261110);
+      const q1 = await tenantService.createVenue({
+        name: 'Góc Phố - Quận 1',
+        code: 'Q1',
+        businessType: 'cafe',
+        addressLine1: '45 Lê Thánh Tôn, Phường Bến Nghé',
+        city: 'TP. Hồ Chí Minh',
+      });
+      const copied = await catalog.copyMenu(q1.id, { fromVenueId: venue.id });
+      // Giữ đúng tình trạng "hết món" như Quận 3 để demo giống nhau
+      const q1Items = (await catalog.listItems({ venueId: q1.id })).filter(
+        (i) => i.venueId === q1.id,
+      );
+      for (const group of MENU) {
+        for (const item of group.items) {
+          const doc = q1Items.find((i) => i.name === item.name);
+          if (doc && item.unavailable) {
+            await catalog.toggleAvailability(doc.id, {
+              isAvailable: false,
+              unavailableReason: item.unavailable,
+            });
+          }
+        }
+      }
+      const weightOf = new Map(MENU.flatMap((g) => g.items.map((i) => [i.name, i.weight ?? 1])));
+      const q1Sellable = q1Items.filter(
+        (i) => !MENU.some((g) => g.items.some((x) => x.name === i.name && x.unavailable)),
+      );
+      const q1Lines = () =>
+        Array.from({ length: brng.int(1, 3) }, () => {
+          const doc = brng.weighted(q1Sellable, (i) => weightOf.get(i.name) ?? 1);
+          const variant = doc.variants.length > 0 && brng.chance(0.3) ? doc.variants[1] : null;
+          return { menuItemId: doc.id, variantId: variant?.id, quantity: 1 };
+        });
+
+      const q1Tables: TableDoc[] = [];
+      for (let i = 1; i <= 6; i++) {
+        q1Tables.push(
+          await tables.create({ venueId: q1.id, section: 'Tầng trệt', name: `A${i}`, capacity: 4 }),
+        );
+      }
+
+      let history = 0;
+      for (let daysAgo = BRANCH_HISTORY_DAYS; daysAgo >= 1; daysAgo--) {
+        const day = new Date();
+        day.setDate(day.getDate() - daysAgo);
+        let seq = 0;
+        for (const [hourStr, base] of Object.entries(HOURLY_ORDERS)) {
+          const count = Math.max(0, Math.round(base * BRANCH_TRAFFIC + brng.int(-1, 1)));
+          for (let n = 0; n < count; n++) {
+            const createdAt = new Date(day);
+            createdAt.setHours(Number(hourStr), brng.int(0, 59), brng.int(0, 59), 0);
+            const dineIn = brng.chance(0.5);
+            const order = await orders.createDraft({
+              venueId: q1.id,
+              orderType: dineIn ? 'dine_in' : 'takeaway',
+              tableId: dineIn ? brng.pick(q1Tables).id : undefined,
+              lines: q1Lines(),
+            });
+            seq++;
+            const orderNumber = `ORD-${ymd(day)}-${String(seq).padStart(4, '0')}`;
+            const sentAt = minutesLater(createdAt, 1);
+            const readyAt = minutesLater(createdAt, brng.int(4, 12));
+            const servedAt = minutesLater(readyAt, brng.int(1, 3));
+            const paidAt = minutesLater(servedAt, brng.int(10, 45));
+            await payments.createForOrder(order.id, {
+              method: brng.chance(0.5) ? 'cash' : 'vietqr',
+              amount: order.pricing.total.amount,
+            });
+            await orderModel.updateOne(
+              { id: order.id },
+              {
+                $set: {
+                  orderNumber,
+                  createdAt,
+                  updatedAt: paidAt,
+                  sentAt,
+                  paidAt,
+                  lines: order.lines.map((l) => ({
+                    ...l,
+                    kitchenStatus: 'served',
+                    sentToKitchenAt: sentAt,
+                    readyAt,
+                    servedAt,
+                  })),
+                },
+              },
+            );
+            await paymentModel.updateMany(
+              { orderId: order.id },
+              { $set: { orderNumber, receivedAt: paidAt, createdAt: paidAt, updatedAt: paidAt } },
+            );
+            history++;
+          }
+        }
+      }
+
+      // Hôm nay: vài đơn mang về đã thu (để "Chi nhánh hôm nay" trên tổng quan có số liệu)
+      let todayCount = 0;
+      const nowB = new Date();
+      for (let h = 7; h < Math.min(nowB.getHours(), 22); h += 2) {
+        const order = await orders.createDraft({
+          venueId: q1.id,
+          orderType: 'takeaway',
+          lines: q1Lines(),
+        });
+        await orders.sendToKitchen(order.id);
+        for (const line of order.lines) {
+          await orders.setLineKitchenStatus(order.id, line.id, 'served');
+        }
+        await payments.createForOrder(order.id, {
+          method: brng.chance(0.5) ? 'cash' : 'vietqr',
+          amount: order.pricing.total.amount,
+        });
+        const createdAt = new Date(nowB);
+        createdAt.setHours(h, brng.int(0, 59), 0, 0);
+        await orderModel.updateOne(
+          { id: order.id },
+          { $set: { createdAt, paidAt: minutesLater(createdAt, 20) } },
+        );
+        todayCount++;
+      }
+
+      // Đơn đã thu → bàn "cần dọn"; chi nhánh 2 không có bàn đang phục vụ
+      await tableModel.updateMany(
+        { tenantId: tenant.id, venueId: q1.id },
+        { $set: { status: 'available', currentOrderId: null, occupiedSince: null } },
+      );
+      return {
+        name: q1.name,
+        items: copied.items,
+        tables: q1Tables.length,
+        history,
+        today: todayCount,
+      };
+    }
   });
 
-  console.log('\n✅ Seed demo xong — "Cà phê Góc Phố"');
+  console.log('\n✅ Seed demo xong — "Cà phê Góc Phố" (2 chi nhánh: Q3, Q1)');
   console.log(`   Tenant slug: ${tenant.slug}`);
   console.log(
     `   Mật khẩu chung: ${PASSWORD === 'ordergo123' ? 'ordergo123 (mặc định)' : '(DEMO_PASSWORD)'}`,

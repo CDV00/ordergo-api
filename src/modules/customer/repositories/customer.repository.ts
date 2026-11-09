@@ -123,6 +123,16 @@ export class CustomerRepository {
     return { customerId: anonymous.id, merged: false };
   }
 
+  /** Khách thuộc tenant (dùng để kiểm customerId do client gửi). */
+  async existsInTenant(tenantId: string, id: string): Promise<boolean> {
+    return (await this.model.exists({ id, tenantId, deletedAt: null }).exec()) !== null;
+  }
+
+  /** Như recordOrder nhưng chỉ cập nhật khi khách thuộc đúng tenant. */
+  async recordOrderInTenant(tenantId: string, id: string, orderTotal: number): Promise<void> {
+    if (await this.existsInTenant(tenantId, id)) await this.recordOrder(id, orderTotal);
+  }
+
   async recordOrder(id: string, orderTotal: number): Promise<void> {
     const now = new Date();
     await this.model

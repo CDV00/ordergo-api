@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsEnum } from 'class-validator';
 import { OrderService } from './order.service';
@@ -12,6 +12,7 @@ import {
   UpdateOrderLineDto,
 } from './dto/order.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { IDEMPOTENCY_HEADER, Idempotent, isValidIdempotencyKey } from '../../common/idempotency';
 
 class SetKitchenStatusDto {
   @IsEnum(['queued', 'preparing', 'ready', 'served', 'cancelled'])
@@ -38,14 +39,17 @@ export class OrderController {
     return this.service.get(id);
   }
 
+  /** POS offline gửi lại an toàn bằng header `Idempotency-Key`; key được lưu vào `clientId`. */
   @Post()
   @RequirePermissions('order.create')
-  create(@Body() dto: CreateOrderDto) {
-    return this.service.createDraft(dto);
+  @Idempotent()
+  create(@Body() dto: CreateOrderDto, @Headers(IDEMPOTENCY_HEADER) key?: string) {
+    return this.service.createDraft(dto, key && isValidIdempotencyKey(key) ? key : null);
   }
 
   @Post(':id/lines')
   @RequirePermissions('order.update')
+  @Idempotent()
   addLines(@Param('id') id: string, @Body() dto: AddOrderLinesDto) {
     return this.service.addLines(id, dto);
   }
@@ -85,6 +89,7 @@ export class OrderController {
 
   @Post(':id/send-to-kitchen')
   @RequirePermissions('order.send_to_kitchen')
+  @Idempotent()
   send(@Param('id') id: string) {
     return this.service.sendToKitchen(id);
   }

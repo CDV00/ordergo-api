@@ -99,6 +99,27 @@ export async function resolveTenantAccess(
   return { tenantId, venueId: first.venueId, permissions: [...first.permissions] };
 }
 
+/** Phạm vi cơ sở từ danh sách membership (đã lọc đúng tenant). */
+export function venueScopeOf(memberships: Array<Pick<AccessMembership, 'venueId'>>): {
+  tenantWide: boolean;
+  venueIds: string[];
+} {
+  return {
+    tenantWide: memberships.some((m) => m.venueId === null),
+    venueIds: [
+      ...new Set(memberships.map((m) => m.venueId).filter((v): v is string => v !== null)),
+    ],
+  };
+}
+
+/** User có được thao tác trên cơ sở `venueId` không (toàn tenant hoặc được gắn đúng cơ sở). */
+export function canAccessVenue(
+  scope: { tenantWide: boolean; venueIds: string[] },
+  venueId: string,
+): boolean {
+  return scope.tenantWide || scope.venueIds.includes(venueId);
+}
+
 @Injectable()
 export class TenantAccessService {
   constructor(
@@ -111,6 +132,21 @@ export class TenantAccessService {
     return resolveTenantAccess(memberships, req, (tenantId, venueId) =>
       this.venueExists(tenantId, venueId),
     );
+  }
+
+  /**
+   * Phạm vi cơ sở của user trong tenant (theo membership active trong DB, không theo header):
+   * `tenantWide` = có membership toàn tenant (owner/tenant_admin/kế toán...), `venueIds` = các cơ sở
+   * được gắn riêng. Dùng cho thao tác nhiều cơ sở (báo cáo toàn chuỗi, sao chép menu...).
+   */
+  async venueScope(
+    userId: string,
+    tenantId: string,
+  ): Promise<{ tenantWide: boolean; venueIds: string[] }> {
+    const mine = (await this.memberships.findActiveByUser(userId)).filter(
+      (m) => m.tenantId === tenantId,
+    );
+    return venueScopeOf(mine);
   }
 
   private async venueExists(tenantId: string, venueId: string): Promise<boolean> {

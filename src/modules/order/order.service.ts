@@ -9,6 +9,7 @@ import { OrderEventRepository } from './repositories/order-event.repository';
 import { MenuItemRepository } from '../catalog/repositories/menu-item.repository';
 import { TableRepository } from '../table/repositories/table.repository';
 import { VenueRepository } from '../tenant/repositories/venue.repository';
+import { CustomerRepository } from '../customer/repositories/customer.repository';
 import { TenantContextService } from '../../common/context/tenant-context.service';
 import { hasPermission } from '../../common/auth/permissions';
 import {
@@ -41,6 +42,7 @@ export class OrderService {
     private readonly menuItems: MenuItemRepository,
     private readonly tables: TableRepository,
     private readonly venues: VenueRepository,
+    private readonly customers: CustomerRepository,
     private readonly tenantCtx: TenantContextService,
   ) {}
 
@@ -61,13 +63,22 @@ export class OrderService {
 
   // ─── Tạo đơn ────────────────────────────────────────────────────────────
 
-  async createDraft(dto: CreateOrderDto): Promise<OrderDoc> {
+  /** `clientId` = Idempotency-Key của POS (truy vết đơn tạo offline), null nếu không có. */
+  async createDraft(dto: CreateOrderDto, clientId: string | null = null): Promise<OrderDoc> {
     const tenantId = this.tenantCtx.tenantId();
 
     if (dto.lines.length === 0) {
       throw new BadRequestException({
         code: 'EMPTY_ORDER',
         message: 'Đơn phải có ít nhất 1 món.',
+      });
+    }
+
+    // customerId do client gửi → phải là khách của chính quán (chặn gắn khách quán khác để cộng điểm)
+    if (dto.customerId && !(await this.customers.existsInTenant(tenantId, dto.customerId))) {
+      throw new NotFoundException({
+        code: 'CUSTOMER_NOT_FOUND',
+        message: 'Khách hàng không tồn tại.',
       });
     }
 
@@ -84,7 +95,7 @@ export class OrderService {
       tableName = t.name;
     }
 
-    const lines = await this.buildLines(dto.lines);
+    const lines = await this.buildLines(dto.lines, dto.venueId);
     const pricing = computePricing(lines, null, await this.serviceChargeRate(dto.venueId));
     const orderNumber = await this.orders.nextOrderNumber(tenantId, dto.venueId);
 
@@ -102,6 +113,7 @@ export class OrderService {
       discountInfo: null,
       status: 'draft',
       source: 'pos',
+      clientId,
     } as Partial<OrderDoc>);
 
     await this.events.append({
@@ -120,7 +132,7 @@ export class OrderService {
   /** Thêm món vào đơn đang mở. Món mới chưa gửi bếp cho tới khi gọi send-to-kitchen. */
   async addLines(id: string, dto: AddOrderLinesDto): Promise<OrderDoc> {
     const order = await this.getOpenOrder(id);
-    const newLines = await this.buildLines(dto.lines);
+    const newLines = await this.buildLines(dto.lines, order.venueId);
     const lines = [...order.lines, ...newLines];
     const updated = await this.saveLines(order, lines);
     await this.events.append({
@@ -428,11 +440,12 @@ export class OrderService {
   }
 
   /** Dựng order line từ input + snapshot menu hiện tại. Món chưa gửi bếp (`sentToKitchenAt = null`). */
-  private async buildLines(inputs: OrderLineInput[]): Promise<Line[]> {
+  private async buildLines(inputs: OrderLineInput[], venueId: string): Promise<Line[]> {
     return Promise.all(
       inputs.map(async (input) => {
         const item = await this.menuItems.findById(input.menuItemId);
-        if (!item) {
+        // Món của chi nhánh khác không gọi được; món dùng chung toàn chuỗi (venueId null) thì được.
+        if (!item || (item.venueId && item.venueId !== venueId)) {
           throw new NotFoundException({
             code: 'MENU_ITEM_NOT_FOUND',
             message: `Món không tồn tại`,

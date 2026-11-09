@@ -1,5 +1,8 @@
+import type { VenueBreakdownRow } from './report-scope';
+
 /** Báo cáo bán hàng theo khoảng ngày — mọi số tiền là số nguyên VND. */
 export interface SalesReport {
+  /** 'all' = gộp mọi cơ sở; null = toàn tenant (không chọn cơ sở). */
   venueId: string | null;
   timezone: string;
   from: string;
@@ -33,4 +36,6 @@ export interface SalesReport {
     paymentsAmount: number;
     ordersCreated: number;
   }>;
+  /** Chỉ có khi `venueId=all`: doanh thu thuần / số đơn / TB đơn theo từng chi nhánh. */
+  byVenue?: VenueBreakdownRow[];
 }

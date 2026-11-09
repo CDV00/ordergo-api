@@ -5,6 +5,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { envValidationSchema } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
 import { TenantContextModule } from './common/context/tenant-context.module';
+import { IdempotencyModule } from './common/idempotency/idempotency.module';
 import { TenantContextMiddleware } from './common/middleware/tenant-context.middleware';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
@@ -43,6 +44,7 @@ import { AppThrottlerGuard, AppThrottlerModule } from './common/throttle/throttl
     AppThrottlerModule,
     TenantContextModule,
     DatabaseModule,
+    IdempotencyModule,
     AuditModule,
     IdentityModule,
     TenantModule,

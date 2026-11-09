@@ -3,6 +3,8 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import { bootstrapApp, login, Owner, randomPhone, registerOwner } from './helpers';
 import { MembershipRepository } from '../src/modules/tenant/repositories/membership.repository';
+import { getConnectionToken } from '@nestjs/mongoose';
+import type { Connection } from 'mongoose';
 
 /**
  * Vòng một ca bán hàng (Phase 1): bàn → gọi món → gọi thêm → bếp → huỷ món →
@@ -205,6 +207,28 @@ describe('Sales loop (e2e)', () => {
     const report = await o.get(`/v1/reports/today?venueId=${owner.venueId}`).expect(200);
     expect(report.body.data.revenue.net).toBe(54_000);
     expect(report.body.data.topItems[0]).toMatchObject({ name: 'Cà phê sữa', quantity: 2 });
+  });
+
+  it('không gắn được khách của quán khác vào đơn (chặn cộng điểm chéo tenant)', async () => {
+    const other = await registerOwner(app, 'Quán lạ');
+    const foreignCustomer = 'cus-' + Date.now();
+    const db = app.get<Connection>(getConnectionToken());
+    await db.collection('customers').insertOne({
+      id: foreignCustomer,
+      tenantId: other.tenantId,
+      status: 'verified',
+      deletedAt: null,
+    });
+    const res = await as(owner.token)
+      .post('/v1/orders')
+      .send({
+        venueId: owner.venueId,
+        orderType: 'takeaway',
+        customerId: foreignCustomer,
+        lines: [{ menuItemId: coffeeId, quantity: 1 }],
+      })
+      .expect(404);
+    expect(res.body.error.code).toBe('CUSTOMER_NOT_FOUND');
   });
 
   it('huỷ đơn trả bàn về trống', async () => {

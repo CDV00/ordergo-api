@@ -76,6 +76,14 @@ export function buildSalesCsv(
     ],
   );
 
+  if (report.byVenue) {
+    section(
+      'Theo chi nhánh',
+      ['Chi nhánh', 'Doanh thu (VND)', 'Số đơn', 'Giá trị TB/đơn (VND)'],
+      report.byVenue.map((v) => [v.venueName, v.revenue, v.orders, v.averageTicket]),
+    );
+  }
+
   section(
     'Theo ngày',
     ['Ngày', 'Doanh thu (VND)', 'Số đơn'],
