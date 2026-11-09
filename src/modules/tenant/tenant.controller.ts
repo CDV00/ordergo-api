@@ -6,6 +6,7 @@ import { CreateVenueDto, UpdateVenueDto } from './dto/venue.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
+import { VN_BANK_BINS } from '../../shared/utils/vietqr';
 
 @ApiTags('Tenant')
 @ApiBearerAuth()
@@ -21,6 +22,12 @@ export class TenantController {
   @Get('me/memberships')
   async myMemberships(@CurrentUser() user: CurrentUserPayload) {
     return this.service.listMyMemberships(user.userId);
+  }
+
+  /** Danh sách ngân hàng hỗ trợ VietQR (BIN → tên) cho màn hình cài đặt. */
+  @Get('banks')
+  banks() {
+    return Object.entries(VN_BANK_BINS).map(([bin, name]) => ({ bin, name }));
   }
 
   @Get('venues')

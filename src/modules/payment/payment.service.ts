@@ -2,9 +2,13 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PaymentRepository } from './repositories/payment.repository';
 import { OrderRepository } from '../order/repositories/order.repository';
 import { OrderEventRepository } from '../order/repositories/order-event.repository';
+import { OrderService } from '../order/order.service';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { TenantContextService } from '../../common/context/tenant-context.service';
-import { CreatePaymentDto, RefundPaymentDto } from './dto/payment.dto';
+import { CreatePaymentDto, ListPaymentsQuery, RefundPaymentDto } from './dto/payment.dto';
+import { dayRange, DEFAULT_TIMEZONE } from '../../shared/utils/time';
+import { VenueRepository } from '../tenant/repositories/venue.repository';
+import { buildVietQrPayload } from '../../shared/utils/vietqr';
 import { newId } from '../../shared/utils/uuid';
 import { PaymentDoc } from './schemas/payment.schema';
 
@@ -16,7 +20,78 @@ export class PaymentService {
     private readonly events: OrderEventRepository,
     private readonly loyalty: LoyaltyService,
     private readonly tenantCtx: TenantContextService,
+    private readonly orderService: OrderService,
+    private readonly venues: VenueRepository,
   ) {}
+
+  /** Danh sách payment theo khoảng ngày (mặc định hôm nay), mới nhất trước. */
+  async list(q: ListPaymentsQuery): Promise<PaymentDoc[]> {
+    const venue = q.venueId ? await this.venues.findById(q.venueId) : null;
+    const timezone = venue?.timezone ?? DEFAULT_TIMEZONE;
+    const filter: Record<string, unknown> = {};
+    if (q.venueId) filter.venueId = q.venueId;
+    if (q.method) filter.method = q.method;
+    const from = dayRange(q.from, timezone).start;
+    const to = dayRange(q.to ?? q.from, timezone).end;
+    filter.receivedAt = { $gte: from, $lte: to };
+    return this.payments.find(filter, { sort: { receivedAt: -1 }, limit: 500 });
+  }
+
+  async get(id: string): Promise<PaymentDoc> {
+    return this.payments.findByIdOrFail(id);
+  }
+
+  /** Số tiền còn phải thu của đơn = total − (đã thu − đã hoàn). */
+  async remainingDue(orderId: string): Promise<{ total: number; paid: number; remaining: number }> {
+    const order = await this.orders.findByIdOrFail(orderId);
+    const previous = await this.payments.findByOrder(orderId);
+    const paid = previous
+      .filter((p) => p.status === 'succeeded' || p.status === 'partially_refunded')
+      .reduce((acc, p) => acc + (p.amount.amount - p.refundedAmount.amount), 0);
+    const total = order.pricing.total.amount;
+    return { total, paid, remaining: Math.max(total - paid, 0) };
+  }
+
+  /** VietQR động cho phần còn phải thu — thu ngân đưa khách quét ở quầy. */
+  async paymentQr(orderId: string) {
+    const order = await this.orders.findByIdOrFail(orderId);
+    if (!['draft', 'sent', 'in_progress', 'ready', 'served'].includes(order.status)) {
+      throw new BadRequestException({
+        code: 'ORDER_NOT_PAYABLE',
+        message: 'Đơn đã thanh toán hoặc đã huỷ.',
+      });
+    }
+    const venue = await this.venues.findByIdOrFail(order.venueId);
+    const bank = venue.settings?.bankAccount;
+    if (!bank?.bankBin || !bank?.accountNumber) {
+      throw new BadRequestException({
+        code: 'NO_BANK_ACCOUNT',
+        message: 'Chưa cấu hình tài khoản nhận tiền. Vào Cài đặt → Thanh toán để thêm.',
+      });
+    }
+    const { remaining } = await this.remainingDue(orderId);
+    const memo = `OG${order.orderNumber.replace(/-/g, '').slice(-12)}`;
+    const accountName = bank.accountName ?? venue.name;
+    return {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      amount: remaining,
+      memo,
+      qrPayload: buildVietQrPayload({
+        bankBin: bank.bankBin,
+        accountNumber: bank.accountNumber,
+        accountName,
+        amount: remaining,
+        memo,
+      }),
+      bank: {
+        bin: bank.bankBin,
+        name: bank.bankName ?? '',
+        accountNumber: bank.accountNumber,
+        accountName,
+      },
+    };
+  }
 
   async listForOrder(orderId: string): Promise<PaymentDoc[]> {
     return this.payments.findByOrder(orderId);
@@ -43,6 +118,12 @@ export class PaymentService {
     const paidBefore = previous
       .filter((p) => p.status === 'succeeded' || p.status === 'partially_refunded')
       .reduce((acc, p) => acc + (p.amount.amount - p.refundedAmount.amount), 0);
+    if (dto.method === 'cash' && dto.tenderedAmount != null && dto.tenderedAmount < dto.amount) {
+      throw new BadRequestException({
+        code: 'TENDER_TOO_LOW',
+        message: 'Tiền khách đưa ít hơn số tiền cần thu.',
+      });
+    }
     if (paidBefore + dto.amount > totalDue) {
       throw new BadRequestException({
         code: 'OVERPAY',
@@ -56,6 +137,7 @@ export class PaymentService {
       orderNumber: order.orderNumber,
       method: dto.method,
       amount: { amount: dto.amount, currency: 'VND' },
+      tenderedAmount: dto.method === 'cash' ? (dto.tenderedAmount ?? dto.amount) : null,
       receivedAt: new Date(),
       receivedBy: this.tenantCtx.userId(),
       shiftId: dto.shiftId ?? null,
@@ -72,6 +154,7 @@ export class PaymentService {
       updatedOrder = await this.orders.updateById(orderId, {
         $set: { status: 'paid', paidAt: new Date() },
       });
+      await this.orderService.onOrderPaid(updatedOrder);
       await this.events.append({
         tenantId: order.tenantId,
         eventType: 'order.paid',
@@ -95,7 +178,7 @@ export class PaymentService {
         } catch (err) {
           // Không fail payment nếu loyalty fail — log + tiếp tục
           // (worker sẽ retry qua outbox sau này)
-          // eslint-disable-next-line no-console
+
           console.error('[loyalty.earn] failed', err);
         }
       }

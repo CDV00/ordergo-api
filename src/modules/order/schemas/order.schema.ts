@@ -157,6 +157,10 @@ export class OrderDoc {
   })
   status!: OrderStatus;
 
+  // Mixed: field con tên `type` sẽ bị Mongoose hiểu là khai báo kiểu nếu khai báo shape. DTO đã validate.
+  @Prop({ type: Object, default: null })
+  discountInfo!: { type: 'percent' | 'amount'; value: number; reason: string | null } | null;
+
   @Prop({ type: String, default: null })
   cancelReason!: string | null;
 

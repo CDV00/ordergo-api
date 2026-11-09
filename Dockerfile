@@ -40,7 +40,11 @@ RUN apk add --no-cache tzdata wget \
 
 WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nestjs
+    adduser --system --uid 1001 nestjs && \
+    mkdir -p /app/uploads && chown nestjs:nodejs /app/uploads
+# Ảnh upload — mount volume để giữ qua các lần deploy
+ENV UPLOAD_DIR=/app/uploads
+VOLUME ["/app/uploads"]
 
 COPY --from=prod-deps --chown=nestjs:nodejs /opt/node_modules ./node_modules
 COPY --from=build --chown=nestjs:nodejs /opt/dist ./dist

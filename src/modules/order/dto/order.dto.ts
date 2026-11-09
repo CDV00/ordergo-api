@@ -1,16 +1,19 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsEnum,
   IsInt,
   IsOptional,
   IsString,
+  Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
 
-class OrderLineInput {
+export class OrderLineInput {
   @IsString() menuItemId!: string;
   @IsOptional() @IsString() variantId?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) toppingOptionIds?: string[];
@@ -34,8 +37,9 @@ export class CreateOrderDto {
   lines!: OrderLineInput[];
 }
 
-export class AddOrderLineDto {
+export class AddOrderLinesDto {
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(20)
   @ValidateNested({ each: true })
   @Type(() => OrderLineInput)
@@ -44,4 +48,24 @@ export class AddOrderLineDto {
 
 export class CancelOrderDto {
   @IsOptional() @IsString() reason?: string;
+}
+
+export class UpdateOrderLineDto {
+  @IsOptional() @IsInt() @Min(1) @Max(99) quantity?: number;
+  @IsOptional() @IsString() @MaxLength(200) note?: string;
+}
+
+export class RemoveOrderLineDto {
+  @IsOptional() @IsString() @MaxLength(200) reason?: string;
+}
+
+export class ApplyDiscountDto {
+  @IsEnum(['percent', 'amount']) type!: 'percent' | 'amount';
+  /** percent: 0–100; amount: VND. 0 = bỏ giảm giá. */
+  @IsInt() @Min(0) value!: number;
+  @IsOptional() @IsString() @MaxLength(200) reason?: string;
+}
+
+export class MoveTableDto {
+  @IsString() tableId!: string;
 }

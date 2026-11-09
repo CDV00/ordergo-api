@@ -8,6 +8,7 @@ import { OrderService } from './order.service';
 import { OrderController } from './order.controller';
 import { CatalogModule } from '../catalog/catalog.module';
 import { TableModule } from '../table/table.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { TableModule } from '../table/table.module';
     ]),
     CatalogModule,
     TableModule,
+    TenantModule,
   ],
   providers: [OrderRepository, OrderEventRepository, OrderService],
   controllers: [OrderController],

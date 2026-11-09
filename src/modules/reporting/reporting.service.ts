@@ -3,6 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { OrderDoc } from '../order/schemas/order.schema';
 import { TenantContextService } from '../../common/context/tenant-context.service';
+import { VenueRepository } from '../tenant/repositories/venue.repository';
+import { dayRange, DEFAULT_TIMEZONE, hourIn } from '../../shared/utils/time';
 
 export interface DailySalesSummary {
   date: string;
@@ -19,16 +21,15 @@ export class ReportingService {
   constructor(
     @InjectModel(OrderDoc.name) private readonly orderModel: Model<OrderDoc>,
     private readonly tenantCtx: TenantContextService,
+    private readonly venues: VenueRepository,
   ) {}
 
-  async todaySummary(venueId?: string | null): Promise<DailySalesSummary> {
+  /** Tổng hợp doanh thu 1 ngày (YYYY-MM-DD, mặc định hôm nay) theo múi giờ của cơ sở. */
+  async dailySummary(venueId?: string | null, date?: string | null): Promise<DailySalesSummary> {
     const tenantId = this.tenantCtx.tenantId();
-    const now = new Date();
-    // Lấy 0h hôm nay theo timezone server (cần i18n sau — hardcode UTC+7 cho VN)
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(now);
-    end.setHours(23, 59, 59, 999);
+    const venue = venueId ? await this.venues.findById(venueId) : null;
+    const timezone = venue?.timezone ?? DEFAULT_TIMEZONE;
+    const { ymd, start, end } = dayRange(date, timezone);
 
     const filter: Record<string, unknown> = {
       tenantId,
@@ -37,7 +38,6 @@ export class ReportingService {
     };
     if (venueId) filter.venueId = venueId;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const orders = await this.orderModel
       .find(filter as any)
       .lean<OrderDoc[]>()
@@ -62,7 +62,7 @@ export class ReportingService {
       if (o.status === 'paid') paid += o.pricing.total.amount;
       else pending += o.pricing.total.amount;
 
-      const h = new Date(o.createdAt).getHours();
+      const h = hourIn(new Date(o.createdAt), timezone);
       const cur = hourMap.get(h) ?? { orderCount: 0, revenue: 0 };
       cur.orderCount += 1;
       cur.revenue += o.pricing.total.amount;
@@ -94,7 +94,7 @@ export class ReportingService {
       .slice(0, 10);
 
     return {
-      date: start.toISOString().substring(0, 10),
+      date: ymd,
       venueId: venueId ?? null,
       orders: {
         count: orders.length - cancelledCount,

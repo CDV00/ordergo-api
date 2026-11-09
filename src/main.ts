@@ -2,13 +2,16 @@ import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { setupStaticUploads } from './app.setup';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: false });
   const config = app.get(ConfigService);
 
   app.setGlobalPrefix('v1');
+  setupStaticUploads(app);
 
   const corsOrigins = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:3000')
     .split(',')
@@ -44,7 +47,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  // eslint-disable-next-line no-console
   console.error('Bootstrap failed:', err);
   process.exit(1);
 });

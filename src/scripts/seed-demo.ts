@@ -27,7 +27,7 @@ import type { RoleCode } from '../modules/tenant/schemas/membership.schema';
 import { CatalogService } from '../modules/catalog/catalog.service';
 import type { MenuItemDoc } from '../modules/catalog/schemas/menu-item.schema';
 import { TableService } from '../modules/table/table.service';
-import type { TableDoc } from '../modules/table/schemas/table.schema';
+import { TableDoc } from '../modules/table/schemas/table.schema';
 import { OrderService } from '../modules/order/order.service';
 import { OrderDoc } from '../modules/order/schemas/order.schema';
 import { PaymentService } from '../modules/payment/payment.service';
@@ -250,6 +250,7 @@ async function main() {
   const connection = app.get<Connection>(getConnectionToken());
   const orderModel = app.get<Model<OrderDoc>>(getModelToken(OrderDoc.name));
   const paymentModel = app.get<Model<PaymentDoc>>(getModelToken(PaymentDoc.name));
+  const tableModel = app.get<Model<TableDoc>>(getModelToken(TableDoc.name));
   const tenantCtx = app.get(TenantContextService);
   const auth = app.get(AuthService);
   const users = app.get(UserRepository);
@@ -491,6 +492,12 @@ async function main() {
       }
     }
 
+    // Đơn lịch sử đã thu → bàn bị chuyển "cần dọn"; dọn sạch trước khi dựng bàn đang phục vụ.
+    await tableModel.updateMany(
+      { tenantId: tenant.id },
+      { $set: { status: 'available', currentOrderId: null, occupiedSince: null } },
+    );
+
     // Bàn đang có khách: T1 vừa gọi (chờ bếp), T3 bếp đang làm, S2 món đã xong, L1 đơn nháp.
     const byName = (name: string) => allTables.find((t) => t.name === name)!;
     const live = [
@@ -515,7 +522,6 @@ async function main() {
           }
         }
       }
-      await tables.changeStatus(t.id, { status: 'occupied' });
     }
     await tables.changeStatus(byName('T2').id, { status: 'cleaning' });
     await tables.changeStatus(byName('L3').id, { status: 'reserved' });
