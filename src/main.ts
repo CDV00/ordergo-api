@@ -4,7 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
-import { setupStaticUploads } from './app.setup';
+import { setupRealtime, setupStaticUploads } from './app.setup';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: false });
@@ -12,6 +12,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('v1');
   setupStaticUploads(app);
+  setupRealtime(app);
 
   const corsOrigins = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:3000')
     .split(',')

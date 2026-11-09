@@ -1,6 +1,7 @@
 import type { ServerResponse } from 'node:http';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { StorageService, UPLOADS_URL_PREFIX } from './modules/storage/storage.service';
+import { RealtimeIoAdapter } from './modules/realtime/realtime-io.adapter';
 
 /** Phục vụ ảnh đã upload tại /uploads (ngoài prefix /v1). Dùng chung cho main.ts và e2e. */
 export function setupStaticUploads(app: NestExpressApplication): void {
@@ -16,4 +17,9 @@ export function setupStaticUploads(app: NestExpressApplication): void {
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     },
   });
+}
+
+/** Socket.IO (namespace /realtime) dùng CORS_ORIGINS như REST. Dùng chung cho main.ts và e2e. */
+export function setupRealtime(app: NestExpressApplication): void {
+  app.useWebSocketAdapter(new RealtimeIoAdapter(app));
 }

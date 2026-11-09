@@ -14,17 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    services:
-      mongo:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
     env:
       # Giá trị giả chỉ dùng cho CI — app bắt buộc secret ≥ 32 ký tự.
       JWT_ACCESS_SECRET: ci-only-access-secret-not-used-anywhere-else
@@ -33,6 +22,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # Replica set 1 node — cần cho transaction và change streams (realtime).
+      # (service container của GitHub không truyền được --replSet nên chạy bằng docker run)
+      - name: Start MongoDB replica set
+        run: |
+          docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 30); do
+            docker exec mongo mongosh --quiet --eval "db.runCommand({ ping: 1 })" && break
+            sleep 1
+          done
+          docker exec mongo mongosh --quiet --eval \
+            "rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] })"
+          for i in $(seq 1 30); do
+            docker exec mongo mongosh --quiet --eval "rs.isMaster().ismaster" | grep -q true && break
+            sleep 1
+          done
 
       - uses: actions/setup-node@v4
         with:

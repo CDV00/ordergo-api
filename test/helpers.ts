@@ -22,8 +22,10 @@ export async function bootstrapApp(dbName: string): Promise<INestApplication<App
   const app = moduleFixture.createNestApplication<NestExpressApplication>();
   app.setGlobalPrefix('v1');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { setupStaticUploads } = require('../src/app.setup') as typeof import('../src/app.setup');
+  const setup = require('../src/app.setup') as typeof import('../src/app.setup');
+  const { setupRealtime, setupStaticUploads } = setup;
   setupStaticUploads(app);
+  setupRealtime(app);
   await app.init();
   await app.get<Connection>(getConnectionToken()).dropDatabase();
   return app as unknown as INestApplication<App>;
