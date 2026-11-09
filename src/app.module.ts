@@ -24,6 +24,9 @@ import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { PublicApiModule } from './modules/public-api/public-api.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { ShiftModule } from './modules/shift/shift.module';
+import { StaffModule } from './modules/staff/staff.module';
 import { JwtModule } from '@nestjs/jwt';
 import { HealthController } from './common/health/health.controller';
 
@@ -38,6 +41,7 @@ import { HealthController } from './common/health/health.controller';
     ScheduleModule.forRoot(),
     TenantContextModule,
     DatabaseModule,
+    AuditModule,
     IdentityModule,
     TenantModule,
     CatalogModule,
@@ -52,6 +56,8 @@ import { HealthController } from './common/health/health.controller';
     PublicApiModule,
     StorageModule,
     RealtimeModule,
+    ShiftModule,
+    StaffModule,
   ],
   controllers: [HealthController],
   providers: [

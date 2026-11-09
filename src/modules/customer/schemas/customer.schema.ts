@@ -78,6 +78,10 @@ export class CustomerDoc {
   @Prop({ type: [String], default: [] })
   tags!: string[];
 
+  /** Ghi chú nội bộ của quán (nhân viên nhập) — xoá khi ẩn danh hoá */
+  @Prop({ type: String, default: null })
+  note!: string | null;
+
   @Prop({ type: ConsentsShape, default: () => ({}), _id: false })
   consents!: {
     marketing: { granted: boolean; grantedAt: Date | null };

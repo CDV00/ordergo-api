@@ -7,6 +7,7 @@ import { PaymentController } from './payment.controller';
 import { OrderModule } from '../order/order.module';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { ShiftModule } from '../shift/shift.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { TenantModule } from '../tenant/tenant.module';
     OrderModule,
     LoyaltyModule,
     TenantModule,
+    ShiftModule,
   ],
   providers: [PaymentRepository, PaymentService],
   controllers: [PaymentController],
