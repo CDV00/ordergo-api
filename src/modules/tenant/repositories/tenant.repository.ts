@@ -84,9 +84,7 @@ export class TenantRepository {
   async ensureSlug(t: TenantDoc): Promise<TenantDoc> {
     if (t.slug) return t;
     const slug = await this.generateUniqueSlug(t.name);
-    await this.model
-      .updateOne({ id: t.id }, { $set: { slug, updatedAt: new Date() } })
-      .exec();
+    await this.model.updateOne({ id: t.id }, { $set: { slug, updatedAt: new Date() } }).exec();
     this.logger.warn(`Backfilled slug "${slug}" for tenant ${t.id} (${t.name})`);
     return { ...t, slug };
   }

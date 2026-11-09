@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { InjectConnection } from '@nestjs/mongoose';
-import { Connection } from 'mongoose';
+import { Connection, ConnectionStates } from 'mongoose';
 import { Public } from '../decorators/public.decorator';
 
 @ApiTags('Health')
@@ -17,9 +17,8 @@ export class HealthController {
 
   @Public()
   @Get('health/ready')
-  async ready() {
-    // 1 = connected, 2 = connecting
-    const ok = this.mongo.readyState === 1;
+  ready() {
+    const ok = this.mongo.readyState === ConnectionStates.connected;
     return {
       status: ok ? 'ready' : 'not_ready',
       mongo: ok ? 'connected' : `state_${this.mongo.readyState}`,

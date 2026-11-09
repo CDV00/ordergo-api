@@ -1,0 +1,7 @@
+# Mọi file text dùng LF (khớp prettier endOfLine: lf), bất kể core.autocrlf của máy dev.
+* text=auto eol=lf
+
+# Script Windows giữ CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

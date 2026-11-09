@@ -43,12 +43,9 @@ export class TenantContextMiddleware implements NestMiddleware {
       }
     }
 
-    // Header override (cho user multi-tenant chuyển tenant trong cùng JWT)
-    const headerTenant = req.headers['x-tenant-id'];
-    if (typeof headerTenant === 'string' && headerTenant) ctx.tenantId = headerTenant;
-    const headerVenue = req.headers['x-venue-id'];
-    if (typeof headerVenue === 'string' && headerVenue) ctx.venueId = headerVenue;
-
+    // KHÔNG áp header X-Tenant-Id / X-Venue-Id ở đây: header chưa được kiểm chứng.
+    // JwtAuthGuard sẽ đối chiếu header với membership trong DB rồi mới cập nhật ctx
+    // (xem TenantAccessService). Route @Public() chỉ thấy tenant đã ký trong JWT.
     this.tenantCtx.run(ctx, () => next());
   }
 }

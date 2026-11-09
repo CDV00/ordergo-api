@@ -26,8 +26,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const req = httpCtx.getRequest<Request>();
     const requestId = (req.headers['x-request-id'] as string) ?? randomUUID();
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let body: ErrorBody = {
+    let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
+    const body: ErrorBody = {
       code: 'INTERNAL_ERROR',
       message: 'Có lỗi xảy ra, vui lòng thử lại.',
       requestId,

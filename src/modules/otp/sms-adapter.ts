@@ -12,8 +12,9 @@ export interface SmsAdapter {
 export class ConsoleSmsAdapter implements SmsAdapter {
   private readonly logger = new Logger('SMS');
 
-  async send(phone: string, message: string): Promise<void> {
+  send(phone: string, message: string): Promise<void> {
     this.logger.warn(`📱 SMS to ${phone}: ${message}`);
+    return Promise.resolve();
   }
 }
 

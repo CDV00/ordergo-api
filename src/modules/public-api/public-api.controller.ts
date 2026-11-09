@@ -108,7 +108,7 @@ export class PublicApiController {
 
   @Get('sessions/:sessionId')
   @UseGuards(PublicSessionGuard)
-  async getSession(@Req() req: Request) {
+  getSession(@Req() req: Request) {
     const ctx = req.publicSession as PublicSessionContext;
     return {
       id: ctx.session.id,
