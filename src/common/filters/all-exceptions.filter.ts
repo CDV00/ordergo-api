@@ -61,7 +61,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (status >= 500) {
       this.logger.error(
-        `${req.method} ${req.url} → ${status} ${body.code}`,
+        `${req.method} ${req.path} → ${status} ${body.code}`,
         exception instanceof Error ? exception.stack : String(exception),
         requestId,
       );

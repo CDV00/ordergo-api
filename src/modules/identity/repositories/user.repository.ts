@@ -62,6 +62,10 @@ export class UserRepository {
     return this.model.findOne({ phone, deletedAt: null }).lean<UserDoc>().exec();
   }
 
+  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+    await this.model.updateOne({ id }, { $set: { passwordHash, updatedAt: new Date() } }).exec();
+  }
+
   async findById(id: string): Promise<UserDoc | null> {
     return this.model.findOne({ id, deletedAt: null }).lean<UserDoc>().exec();
   }

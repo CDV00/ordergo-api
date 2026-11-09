@@ -55,4 +55,35 @@ export class MembershipRepository {
   async findByTenant(tenantId: string): Promise<MembershipDoc[]> {
     return this.model.find({ tenantId, deletedAt: null }).lean<MembershipDoc[]>().exec();
   }
+
+  async findInTenant(tenantId: string, id: string): Promise<MembershipDoc | null> {
+    return this.model.findOne({ id, tenantId, deletedAt: null }).lean<MembershipDoc>().exec();
+  }
+
+  /** Membership bất kỳ trạng thái của user ở đúng tenant + venue (để chặn mời trùng). */
+  async findExisting(
+    tenantId: string,
+    userId: string,
+    venueId: string | null,
+  ): Promise<MembershipDoc | null> {
+    return this.model
+      .findOne({ tenantId, userId, venueId, deletedAt: null })
+      .lean<MembershipDoc>()
+      .exec();
+  }
+
+  async updateInTenant(
+    tenantId: string,
+    id: string,
+    set: Partial<Pick<MembershipDoc, 'roleCode' | 'permissions' | 'status' | 'venueId'>>,
+  ): Promise<MembershipDoc | null> {
+    return this.model
+      .findOneAndUpdate(
+        { id, tenantId, deletedAt: null },
+        { $set: { ...set, updatedAt: new Date() } },
+        { returnDocument: 'after' },
+      )
+      .lean<MembershipDoc>()
+      .exec();
+  }
 }

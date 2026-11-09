@@ -122,6 +122,20 @@ export class AuthService {
     return this.issueTokens(user, primary);
   }
 
+  /** Đổi mật khẩu → thu hồi mọi refresh token (đăng xuất các thiết bị khác). */
+  async changePassword(userId: string, current: string, next: string): Promise<void> {
+    const user = await this.users.findById(userId);
+    const ok = user ? await argon2.verify(user.passwordHash, current).catch(() => false) : false;
+    if (!user || !ok) {
+      throw new UnauthorizedException({
+        code: 'WRONG_PASSWORD',
+        message: 'Mật khẩu hiện tại không đúng.',
+      });
+    }
+    await this.users.updatePasswordHash(userId, await argon2.hash(next, { type: argon2.argon2id }));
+    await this.tokens.revokeAllForUser(userId);
+  }
+
   async logout(rawToken: string | null): Promise<void> {
     if (rawToken) await this.tokens.revoke(rawToken);
   }
@@ -227,7 +241,7 @@ export class AuthService {
     return new Date(now + ms);
   }
 
-  private normalizePhone(p: string): string {
+  normalizePhone(p: string): string {
     let s = p.trim();
     if (s.startsWith('0')) s = '+84' + s.substring(1);
     if (!s.startsWith('+')) s = '+' + s;

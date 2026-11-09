@@ -17,10 +17,6 @@ export class CreatePaymentDto {
   @IsOptional()
   @IsString()
   externalRef?: string;
-
-  @IsOptional()
-  @IsString()
-  shiftId?: string;
 }
 
 export class RefundPaymentDto {

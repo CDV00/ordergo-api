@@ -11,6 +11,7 @@ import { VenueRepository } from '../tenant/repositories/venue.repository';
 import { buildVietQrPayload } from '../../shared/utils/vietqr';
 import { newId } from '../../shared/utils/uuid';
 import { PaymentDoc } from './schemas/payment.schema';
+import { ShiftRepository } from '../shift/repositories/shift.repository';
 
 @Injectable()
 export class PaymentService {
@@ -22,6 +23,7 @@ export class PaymentService {
     private readonly tenantCtx: TenantContextService,
     private readonly orderService: OrderService,
     private readonly venues: VenueRepository,
+    private readonly shifts: ShiftRepository,
   ) {}
 
   /** Danh sách payment theo khoảng ngày (mặc định hôm nay), mới nhất trước. */
@@ -131,6 +133,10 @@ export class PaymentService {
       });
     }
 
+    // Luôn gắn vào ca đang mở của cơ sở (nếu có) — không nhận shiftId từ client để tránh gắn nhầm
+    // vào ca khác/ca đã đóng làm lệch đối soát. Không chặn thu tiền khi quên mở ca.
+    const shiftId = (await this.shifts.findOpen(order.venueId))?.id ?? null;
+
     const payment = await this.payments.create({
       venueId: order.venueId,
       orderId: order.id,
@@ -140,7 +146,7 @@ export class PaymentService {
       tenderedAmount: dto.method === 'cash' ? (dto.tenderedAmount ?? dto.amount) : null,
       receivedAt: new Date(),
       receivedBy: this.tenantCtx.userId(),
-      shiftId: dto.shiftId ?? null,
+      shiftId,
       externalRef: dto.externalRef ?? null,
       status: 'succeeded',
       failureReason: null,

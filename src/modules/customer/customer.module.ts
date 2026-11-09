@@ -3,10 +3,26 @@ import { InjectModel, MongooseModule } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import { CustomerDoc, CustomerSchema } from './schemas/customer.schema';
 import { CustomerRepository } from './repositories/customer.repository';
+import { CustomerTenantRepository } from './repositories/customer-tenant.repository';
+import { CustomerController } from './customer.controller';
+import { CustomerService } from './customer.service';
+import { LoyaltyCardDoc, LoyaltyCardSchema } from '../loyalty/schemas/loyalty-card.schema';
+import { LoyaltyTxDoc, LoyaltyTxSchema } from '../loyalty/schemas/loyalty-transaction.schema';
+import { OrderDoc, OrderSchema } from '../order/schemas/order.schema';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: CustomerDoc.name, schema: CustomerSchema }])],
-  providers: [CustomerRepository],
+  imports: [
+    MongooseModule.forFeature([
+      { name: CustomerDoc.name, schema: CustomerSchema },
+      // Đọc thẻ/giao dịch điểm + đơn gần đây cho màn khách hàng. Không import LoyaltyModule
+      // (LoyaltyModule đã import CustomerModule → vòng phụ thuộc); model dùng chung connection.
+      { name: LoyaltyCardDoc.name, schema: LoyaltyCardSchema },
+      { name: LoyaltyTxDoc.name, schema: LoyaltyTxSchema },
+      { name: OrderDoc.name, schema: OrderSchema },
+    ]),
+  ],
+  controllers: [CustomerController],
+  providers: [CustomerRepository, CustomerTenantRepository, CustomerService],
   exports: [CustomerRepository],
 })
 export class CustomerModule implements OnModuleInit {
