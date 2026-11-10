@@ -97,6 +97,14 @@ interface OrderLine {
   servedAt: Date | null;
 }
 
+export type PaymentRequestMethod = 'vietqr' | 'cash' | 'card';
+export interface PaymentRequest {
+  method: PaymentRequestMethod;
+  /** Số tiền còn phải thu tại thời điểm khách báo (VND) */
+  amount: number;
+  requestedAt: Date;
+}
+
 @Schema({ collection: 'orders' })
 export class OrderDoc {
   @Prop({ type: String, required: true, unique: true, index: true })
@@ -163,6 +171,13 @@ export class OrderDoc {
 
   @Prop({ type: String, default: null })
   cancelReason!: string | null;
+
+  /**
+   * Khách tự báo thanh toán từ trang QR (đã chuyển khoản / muốn trả tại quầy).
+   * Chỉ là yêu cầu — tiền chỉ được ghi nhận khi nhân viên xác nhận (tạo payment). Xoá khi đơn paid/huỷ.
+   */
+  @Prop({ type: Object, default: null })
+  paymentRequest!: PaymentRequest | null;
 
   @Prop({ type: Date, default: null }) sentAt!: Date | null;
   @Prop({ type: Date, default: null }) paidAt!: Date | null;

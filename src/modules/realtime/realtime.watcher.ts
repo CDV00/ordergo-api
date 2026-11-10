@@ -32,6 +32,7 @@ interface RawOrder {
   status: string;
   source: string;
   lines?: Array<{ sentToKitchenAt?: Date | null; kitchenStatus?: string }>;
+  paymentRequest?: { method: string; amount: number; requestedAt: Date } | null;
 }
 interface RawTable {
   id: string;
@@ -144,6 +145,13 @@ export class RealtimeWatcher implements OnModuleInit, OnApplicationShutdown {
       status: o.status,
       source: o.source,
       kitchen,
+      paymentRequest: o.paymentRequest
+        ? {
+            method: o.paymentRequest.method,
+            amount: o.paymentRequest.amount,
+            requestedAt: new Date(o.paymentRequest.requestedAt).toISOString(),
+          }
+        : null,
     };
     this.gateway.emitToVenue(o.tenantId, o.venueId, RealtimeEvent.OrderChanged, payload);
     if (o.tableId) {

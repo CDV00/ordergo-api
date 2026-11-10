@@ -16,6 +16,13 @@ export class PaymentController {
     return this.service.list(q);
   }
 
+  /** Khai báo trước `payments/:id` để "pending" không bị hiểu là id. */
+  @Get('payments/pending')
+  @RequirePermissions('order.pay')
+  pending(@Query('venueId') venueId?: string) {
+    return this.service.listPendingRequests(venueId);
+  }
+
   @Get('payments/:id')
   @RequirePermissions('order.pay')
   get(@Param('id') id: string) {

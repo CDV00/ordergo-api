@@ -28,6 +28,8 @@ export interface OrderChangedPayload {
   source: string;
   /** Số món theo trạng thái bếp (chỉ món đã gửi bếp) — để client báo "món đã xong" */
   kitchen: { queued: number; preparing: number; ready: number };
+  /** Khách báo thanh toán từ trang QR (chờ nhân viên xác nhận) — để client báo ngay */
+  paymentRequest: { method: string; amount: number; requestedAt: string } | null;
 }
 
 export interface TableChangedPayload {
