@@ -13,6 +13,21 @@ import { newId } from '../../shared/utils/uuid';
 import { PaymentDoc } from './schemas/payment.schema';
 import { ShiftRepository } from '../shift/repositories/shift.repository';
 import { CustomerRepository } from '../customer/repositories/customer.repository';
+import type { PaymentRequestMethod } from '../order/schemas/order.schema';
+
+export interface PendingPaymentRequest {
+  orderId: string;
+  orderNumber: string;
+  venueId: string;
+  tableName: string | null;
+  source: string;
+  status: string;
+  total: number;
+  paidAmount: number;
+  amountDue: number;
+  method: PaymentRequestMethod;
+  requestedAt: Date;
+}
 
 @Injectable()
 export class PaymentService {
@@ -39,6 +54,46 @@ export class PaymentService {
     const to = dayRange(q.to ?? q.from, timezone).end;
     filter.receivedAt = { $gte: from, $lte: to };
     return this.payments.find(filter, { sort: { receivedAt: -1 }, limit: 500 });
+  }
+
+  /**
+   * Đơn khách đã báo thanh toán (từ trang QR) nhưng nhân viên chưa xác nhận — mới nhất trước.
+   * Nhân viên xác nhận bằng POST /orders/:id/payments như thu tiền bình thường.
+   */
+  async listPendingRequests(venueId?: string): Promise<PendingPaymentRequest[]> {
+    const filter: Record<string, unknown> = {
+      paymentRequest: { $ne: null },
+      status: { $nin: ['paid', 'cancelled', 'refunded'] },
+    };
+    if (venueId) filter.venueId = venueId;
+    const orders = await this.orders.find(filter, {
+      sort: { 'paymentRequest.requestedAt': -1 },
+      limit: 100,
+    });
+    if (orders.length === 0) return [];
+    const payments = await this.payments.find({ orderId: { $in: orders.map((o) => o.id) } });
+    const paidByOrder = new Map<string, number>();
+    for (const p of payments) {
+      if (p.status !== 'succeeded' && p.status !== 'partially_refunded') continue;
+      const net = p.amount.amount - p.refundedAmount.amount;
+      paidByOrder.set(p.orderId, (paidByOrder.get(p.orderId) ?? 0) + net);
+    }
+    return orders.map((o) => {
+      const paid = paidByOrder.get(o.id) ?? 0;
+      return {
+        orderId: o.id,
+        orderNumber: o.orderNumber,
+        venueId: o.venueId,
+        tableName: o.tableName,
+        source: o.source,
+        status: o.status,
+        total: o.pricing.total.amount,
+        paidAmount: paid,
+        amountDue: Math.max(0, o.pricing.total.amount - paid),
+        method: o.paymentRequest!.method,
+        requestedAt: o.paymentRequest!.requestedAt,
+      };
+    });
   }
 
   async get(id: string): Promise<PaymentDoc> {
@@ -160,7 +215,7 @@ export class PaymentService {
     let updatedOrder = order;
     if (paidNow >= totalDue) {
       updatedOrder = await this.orders.updateById(orderId, {
-        $set: { status: 'paid', paidAt: new Date() },
+        $set: { status: 'paid', paidAt: new Date(), paymentRequest: null },
       });
       await this.orderService.onOrderPaid(updatedOrder);
       await this.events.append({

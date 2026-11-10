@@ -370,6 +370,7 @@ export class OrderService {
         status: 'cancelled',
         cancelledAt: new Date(),
         cancelReason: dto.reason ?? null,
+        paymentRequest: null,
       },
     });
     await this.events.append({

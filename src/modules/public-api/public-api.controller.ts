@@ -19,7 +19,7 @@ import {
   PublicSessionGuard,
   SESSION_COOKIE_NAME,
 } from './guards/public-session.guard';
-import { PublicCreateOrderDto } from './dto/public-order.dto';
+import { PublicCreateOrderDto, PublicPaymentRequestDto } from './dto/public-order.dto';
 import { RequestOtpDto, VerifyOtpClaimDto } from './dto/claim.dto';
 import { RATE_LIMITS, RateLimit } from '../../common/throttle/throttle';
 
@@ -180,6 +180,19 @@ export class PublicApiController {
   async generatePaymentQr(@Req() req: Request, @Param('orderId') orderId: string) {
     const ctx = req.publicSession as PublicSessionContext;
     return this.service.generatePaymentQr(ctx.session, orderId);
+  }
+
+  /** Khách báo đã chuyển khoản / muốn trả tại quầy → hiện ở "Chờ xác nhận" trên màn Thanh toán. */
+  @Post('sessions/:sessionId/orders/:orderId/payment-request')
+  @RateLimit(RATE_LIMITS.publicQr)
+  @UseGuards(PublicSessionGuard)
+  async requestPayment(
+    @Req() req: Request,
+    @Param('orderId') orderId: string,
+    @Body() dto: PublicPaymentRequestDto,
+  ) {
+    const ctx = req.publicSession as PublicSessionContext;
+    return this.service.requestPayment(ctx.session, orderId, dto.method);
   }
 
   @Get('sessions/:sessionId/me')

@@ -416,6 +416,46 @@ export class PublicApiService {
    * Sinh VietQR cho khách self-pay 1 đơn cụ thể.
    * Yêu cầu venue đã cấu hình bank account trong settings.
    */
+  /**
+   * Khách báo thanh toán cho đơn của bàn mình. Không ghi nhận tiền — chỉ đặt `order.paymentRequest`
+   * để nhân viên thấy và xác nhận. Gọi lại thì cập nhật phương thức / thời điểm.
+   */
+  async requestPayment(
+    session: TableSessionDoc,
+    orderId: string,
+    method: 'vietqr' | 'cash' | 'card',
+  ): Promise<{ orderId: string; method: string; amount: number; requestedAt: Date }> {
+    return this.tenantCtx.run(
+      {
+        tenantId: session.tenantId,
+        userId: null,
+        venueId: session.venueId,
+        permissions: [],
+      },
+      async () => {
+        const order = await this.orders.findByIdOrFail(orderId);
+        if (order.venueId !== session.venueId || !session.orderIds.includes(orderId)) {
+          throw new BadRequestException({
+            code: 'ORDER_NOT_IN_SESSION',
+            message: 'Đơn này không thuộc bàn của bạn.',
+          });
+        }
+        if (['paid', 'cancelled', 'refunded'].includes(order.status)) {
+          throw new BadRequestException({
+            code: 'ORDER_NOT_PAYABLE',
+            message: 'Đơn đã thanh toán hoặc đã huỷ.',
+          });
+        }
+        const requestedAt = new Date();
+        const amount = order.pricing.total.amount;
+        await this.orders.updateById(orderId, {
+          $set: { paymentRequest: { method, amount, requestedAt } },
+        });
+        return { orderId, method, amount, requestedAt };
+      },
+    );
+  }
+
   async generatePaymentQr(
     session: TableSessionDoc,
     orderId: string,
