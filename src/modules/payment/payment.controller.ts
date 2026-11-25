@@ -16,11 +16,17 @@ export class PaymentController {
     return this.service.list(q);
   }
 
-  /** Khai báo trước `payments/:id` để "pending" không bị hiểu là id. */
+  /** Khai báo trước `payments/:id` để "pending"/"unpaid" không bị hiểu là id. */
   @Get('payments/pending')
   @RequirePermissions('order.pay')
   pending(@Query('venueId') venueId?: string) {
     return this.service.listPendingRequests(venueId);
+  }
+
+  @Get('payments/unpaid')
+  @RequirePermissions('order.pay')
+  unpaid(@Query('venueId') venueId?: string) {
+    return this.service.listUnpaid(venueId);
   }
 
   @Get('payments/:id')
