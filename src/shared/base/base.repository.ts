@@ -146,6 +146,22 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
   }
 
   async updateById(id: string, patch: LooseUpdate): Promise<TDoc> {
+    const updated = await this.updateOneWhere({ id }, patch);
+    if (!updated) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'Không tìm thấy bản ghi.',
+        details: { id },
+      });
+    }
+    return updated;
+  }
+
+  /**
+   * Cập nhật nguyên tử 1 bản ghi khớp `filter` (vd kèm điều kiện trạng thái) và trả bản mới;
+   * không khớp → null. Dùng khi cần "kiểm tra rồi ghi" không bị chen ngang.
+   */
+  async updateOneWhere(filter: LooseFilter, patch: LooseUpdate): Promise<TDoc | null> {
     const userId = this.tenantCtx.current()?.userId ?? null;
     const setClause = {
       ...((patch.$set as object) ?? {}),
@@ -154,21 +170,12 @@ export abstract class BaseTenantRepository<TDoc extends { id: string; tenantId: 
     };
     const finalPatch = { ...patch, $set: setClause };
     const updated = await this.model
-      .findOneAndUpdate(
-        this.mergeFilter({ id }) as any,
-
-        finalPatch as any,
-        { returnDocument: 'after', lean: true },
-      )
+      .findOneAndUpdate(this.mergeFilter(filter) as any, finalPatch as any, {
+        returnDocument: 'after',
+        lean: true,
+      })
       .exec();
-    if (!updated) {
-      throw new NotFoundException({
-        code: 'NOT_FOUND',
-        message: 'Không tìm thấy bản ghi.',
-        details: { id },
-      });
-    }
-    return updated as unknown as TDoc;
+    return (updated as unknown as TDoc) ?? null;
   }
 
   async softDelete(id: string): Promise<void> {

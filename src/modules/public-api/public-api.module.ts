@@ -8,6 +8,7 @@ import { TableSessionModule } from '../table-session/table-session.module';
 import { CustomerModule } from '../customer/customer.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { OrderModule } from '../order/order.module';
+import { PaymentModule } from '../payment/payment.module';
 import { OtpModule } from '../otp/otp.module';
 import { IdentityModule } from '../identity/identity.module';
 
@@ -19,6 +20,7 @@ import { IdentityModule } from '../identity/identity.module';
     CustomerModule,
     CatalogModule,
     OrderModule,
+    PaymentModule,
     OtpModule,
     IdentityModule,
   ],

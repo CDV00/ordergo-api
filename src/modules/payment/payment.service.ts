@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PaymentRepository } from './repositories/payment.repository';
 import { OrderRepository } from '../order/repositories/order.repository';
 import { OrderEventRepository } from '../order/repositories/order-event.repository';
@@ -13,7 +13,13 @@ import { newId } from '../../shared/utils/uuid';
 import { PaymentDoc } from './schemas/payment.schema';
 import { ShiftRepository } from '../shift/repositories/shift.repository';
 import { CustomerRepository } from '../customer/repositories/customer.repository';
-import type { PaymentRequestMethod } from '../order/schemas/order.schema';
+import type {
+  OrderStatus,
+  PaymentRequest,
+  PaymentRequestMethod,
+} from '../order/schemas/order.schema';
+import { OPEN_ORDER_STATUSES } from '../order/order-pricing';
+import { canAccessVenue, TenantAccessService } from '../tenant/tenant-access.service';
 
 export interface PendingPaymentRequest {
   orderId: string;
@@ -29,6 +35,21 @@ export interface PendingPaymentRequest {
   requestedAt: Date;
 }
 
+/** Đơn đang mở chưa thu đủ (màn Thanh toán → "Chưa thu"), kèm số tiền còn phải thu. */
+export interface UnpaidOrder {
+  orderId: string;
+  orderNumber: string;
+  venueId: string;
+  tableName: string | null;
+  source: string;
+  status: OrderStatus;
+  createdAt: Date;
+  lineCount: number;
+  total: number;
+  paidAmount: number;
+  amountDue: number;
+}
+
 @Injectable()
 export class PaymentService {
   constructor(
@@ -41,14 +62,33 @@ export class PaymentService {
     private readonly venues: VenueRepository,
     private readonly shifts: ShiftRepository,
     private readonly customers: CustomerRepository,
+    private readonly access: TenantAccessService,
   ) {}
+
+  /**
+   * Lọc theo cơ sở người gọi được phép xem (membership trong DB, không theo query/header):
+   * có `venueId` → phải thuộc phạm vi, không thì 403; bỏ trống → mọi cơ sở trong phạm vi.
+   */
+  private async scopedVenueFilter(venueId?: string): Promise<Record<string, unknown>> {
+    const scope = await this.access.venueScope(this.tenantCtx.userId(), this.tenantCtx.tenantId());
+    if (venueId) {
+      if (!canAccessVenue(scope, venueId)) {
+        throw new ForbiddenException({
+          code: 'VENUE_ACCESS_DENIED',
+          message: 'Bạn không có quyền truy cập cơ sở này.',
+          details: { venueId },
+        });
+      }
+      return { venueId };
+    }
+    return scope.tenantWide ? {} : { venueId: { $in: scope.venueIds } };
+  }
 
   /** Danh sách payment theo khoảng ngày (mặc định hôm nay), mới nhất trước. */
   async list(q: ListPaymentsQuery): Promise<PaymentDoc[]> {
     const venue = q.venueId ? await this.venues.findById(q.venueId) : null;
     const timezone = venue?.timezone ?? DEFAULT_TIMEZONE;
-    const filter: Record<string, unknown> = {};
-    if (q.venueId) filter.venueId = q.venueId;
+    const filter: Record<string, unknown> = await this.scopedVenueFilter(q.venueId);
     if (q.method) filter.method = q.method;
     const from = dayRange(q.from, timezone).start;
     const to = dayRange(q.to ?? q.from, timezone).end;
@@ -61,25 +101,18 @@ export class PaymentService {
    * Nhân viên xác nhận bằng POST /orders/:id/payments như thu tiền bình thường.
    */
   async listPendingRequests(venueId?: string): Promise<PendingPaymentRequest[]> {
-    const filter: Record<string, unknown> = {
-      paymentRequest: { $ne: null },
-      status: { $nin: ['paid', 'cancelled', 'refunded'] },
-    };
-    if (venueId) filter.venueId = venueId;
-    const orders = await this.orders.find(filter, {
-      sort: { 'paymentRequest.requestedAt': -1 },
-      limit: 100,
-    });
-    if (orders.length === 0) return [];
-    const payments = await this.payments.find({ orderId: { $in: orders.map((o) => o.id) } });
-    const paidByOrder = new Map<string, number>();
-    for (const p of payments) {
-      if (p.status !== 'succeeded' && p.status !== 'partially_refunded') continue;
-      const net = p.amount.amount - p.refundedAmount.amount;
-      paidByOrder.set(p.orderId, (paidByOrder.get(p.orderId) ?? 0) + net);
-    }
+    const orders = await this.orders.find(
+      {
+        ...(await this.scopedVenueFilter(venueId)),
+        paymentRequest: { $ne: null },
+        status: { $in: OPEN_ORDER_STATUSES },
+      },
+      { sort: { 'paymentRequest.requestedAt': -1 }, limit: 100 },
+    );
+    const paidByOrder = await this.payments.netPaidByOrder(orders.map((o) => o.id));
     return orders.map((o) => {
       const paid = paidByOrder.get(o.id) ?? 0;
+      const request = o.paymentRequest as PaymentRequest;
       return {
         orderId: o.id,
         orderNumber: o.orderNumber,
@@ -90,8 +123,41 @@ export class PaymentService {
         total: o.pricing.total.amount,
         paidAmount: paid,
         amountDue: Math.max(0, o.pricing.total.amount - paid),
-        method: o.paymentRequest!.method,
-        requestedAt: o.paymentRequest!.requestedAt,
+        method: request.method,
+        requestedAt: request.requestedAt,
+      };
+    });
+  }
+
+  /**
+   * "Chưa thu": đơn đang mở có món, khách chưa báo thanh toán (đơn đã báo nằm ở `pending`),
+   * chờ lâu nhất trước. `amountDue` đã trừ phần thu trước (thanh toán từng phần).
+   */
+  async listUnpaid(venueId?: string): Promise<UnpaidOrder[]> {
+    const orders = await this.orders.find(
+      {
+        ...(await this.scopedVenueFilter(venueId)),
+        status: { $in: OPEN_ORDER_STATUSES },
+        paymentRequest: null,
+        'lines.0': { $exists: true },
+      },
+      { sort: { createdAt: 1 }, limit: 200 },
+    );
+    const paidByOrder = await this.payments.netPaidByOrder(orders.map((o) => o.id));
+    return orders.map((o) => {
+      const paid = paidByOrder.get(o.id) ?? 0;
+      return {
+        orderId: o.id,
+        orderNumber: o.orderNumber,
+        venueId: o.venueId,
+        tableName: o.tableName,
+        source: o.source,
+        status: o.status,
+        createdAt: o.createdAt,
+        lineCount: o.lines.length,
+        total: o.pricing.total.amount,
+        paidAmount: paid,
+        amountDue: Math.max(0, o.pricing.total.amount - paid),
       };
     });
   }

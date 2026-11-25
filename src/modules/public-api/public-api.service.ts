@@ -8,6 +8,8 @@ import { MenuCategoryRepository } from '../catalog/repositories/menu-category.re
 import { MenuItemRepository } from '../catalog/repositories/menu-item.repository';
 import { OrderRepository } from '../order/repositories/order.repository';
 import { OrderEventRepository } from '../order/repositories/order-event.repository';
+import { OPEN_ORDER_STATUSES } from '../order/order-pricing';
+import { PaymentRepository } from '../payment/repositories/payment.repository';
 import { OtpService } from '../otp/otp.service';
 import { UserRepository } from '../identity/repositories/user.repository';
 import { TenantContextService } from '../../common/context/tenant-context.service';
@@ -47,6 +49,7 @@ export class PublicApiService {
     private readonly menuItems: MenuItemRepository,
     private readonly orders: OrderRepository,
     private readonly orderEvents: OrderEventRepository,
+    private readonly payments: PaymentRepository,
     private readonly otp: OtpService,
     private readonly users: UserRepository,
     private readonly tenantCtx: TenantContextService,
@@ -413,10 +416,6 @@ export class PublicApiService {
   }
 
   /**
-   * Sinh VietQR cho khách self-pay 1 đơn cụ thể.
-   * Yêu cầu venue đã cấu hình bank account trong settings.
-   */
-  /**
    * Khách báo thanh toán cho đơn của bàn mình. Không ghi nhận tiền — chỉ đặt `order.paymentRequest`
    * để nhân viên thấy và xác nhận. Gọi lại thì cập nhật phương thức / thời điểm.
    */
@@ -440,22 +439,31 @@ export class PublicApiService {
             message: 'Đơn này không thuộc bàn của bạn.',
           });
         }
-        if (['paid', 'cancelled', 'refunded'].includes(order.status)) {
-          throw new BadRequestException({
+        const notPayable = () =>
+          new BadRequestException({
             code: 'ORDER_NOT_PAYABLE',
             message: 'Đơn đã thanh toán hoặc đã huỷ.',
           });
-        }
+        if (!OPEN_ORDER_STATUSES.includes(order.status)) throw notPayable();
+        // Số tiền còn phải thu (đã trừ phần thu trước nếu thanh toán từng phần)
+        const paid = (await this.payments.netPaidByOrder([orderId])).get(orderId) ?? 0;
+        const amount = Math.max(0, order.pricing.total.amount - paid);
         const requestedAt = new Date();
-        const amount = order.pricing.total.amount;
-        await this.orders.updateById(orderId, {
-          $set: { paymentRequest: { method, amount, requestedAt } },
-        });
+        // Ghi kèm điều kiện "đơn còn mở" — nhân viên vừa thu xong thì không gắn yêu cầu vào đơn đã trả
+        const updated = await this.orders.updateOneWhere(
+          { id: orderId, status: { $in: OPEN_ORDER_STATUSES } },
+          { $set: { paymentRequest: { method, amount, requestedAt } } },
+        );
+        if (!updated) throw notPayable();
         return { orderId, method, amount, requestedAt };
       },
     );
   }
 
+  /**
+   * Sinh VietQR cho khách self-pay 1 đơn cụ thể.
+   * Yêu cầu venue đã cấu hình bank account trong settings.
+   */
   async generatePaymentQr(
     session: TableSessionDoc,
     orderId: string,

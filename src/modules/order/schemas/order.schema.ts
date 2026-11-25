@@ -100,7 +100,7 @@ interface OrderLine {
 export type PaymentRequestMethod = 'vietqr' | 'cash' | 'card';
 export interface PaymentRequest {
   method: PaymentRequestMethod;
-  /** Số tiền còn phải thu tại thời điểm khách báo (VND) */
+  /** Số tiền còn phải thu tại thời điểm khách báo (VND, đã trừ phần thu trước) */
   amount: number;
   requestedAt: Date;
 }
